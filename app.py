@@ -88,17 +88,16 @@ tab1, tab2 = st.tabs(["Search Cravings", "Plan Meals"])
 
 # TAB 1: CRAVING SEARCH
 with tab1:
-    col1, col2 = st.columns([3, 2])
-    with col1:
-        user_query = st.text_input("What are you craving?", placeholder="e.g., spicy asian noodles")
-    with col2:
-        available_tags = [
-        'vegetarian', 'vegan', 'gluten-free', 'low-carb', 'high-protein', 'dairy-free',
-        'spicy', 'sweet', 'savory', 'breakfast', 'lunch', 'dinner', 'snack', 'dessert',
-        'chicken', 'beef', 'seafood', 'fish', 'egg', 'cheese', 'paneer', 'rice', 'noodles', 'pasta', 
-        'pizza', 'burger', 'salad', 'soup', 'curry', 'sandwich', 'wrap', 'cake',
-        'asian', 'indian', 'italian', 'mexican', 'chinese', 'american', 'mediterranean', 'thai', 'french']
-        selected_tags = st.pills("Filter by tags", available_tags, selection_mode='multi')
+    user_query = st.text_input("What are you craving?", placeholder="e.g., spicy asian noodles")
+
+    available_tags = [
+    'vegetarian', 'vegan', 'gluten-free', 'low-carb', 'high-protein', 'dairy-free',
+    'spicy', 'sweet', 'savory', 'breakfast', 'lunch', 'dinner', 'snack', 'dessert',
+    'chicken', 'beef', 'seafood', 'fish', 'egg', 'cheese', 'paneer', 'rice', 'noodles', 'pasta', 
+    'pizza', 'burger', 'salad', 'soup', 'curry', 'sandwich', 'wrap', 'cake',
+    'asian', 'indian', 'italian', 'mexican', 'chinese', 'american', 'mediterranean', 'thai', 'french']
+
+    selected_tags = st.pills("Filter by tags", available_tags, selection_mode='multi')
 
     if user_query or selected_tags:
         query_to_search = user_query if user_query else ""
@@ -107,7 +106,7 @@ with tab1:
         if results.empty:
             st.warning("No matches found.")
         else:
-            st.write("💡 **Tip:** Click any column header to sort. Click the left edge of a row to reveal the recipe!")
+            st.write("**Tip:** Click any column header to sort. Click the left edge of a row to reveal the recipe!")
             
             display_df = results[['name', 'calories', 'protein', 'minutes', 'description']]
 
