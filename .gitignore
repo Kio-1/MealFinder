@@ -1,0 +1,14 @@
+# Virtual Environments
+.venv/
+venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Massive Data Files (Do not upload these to GitHub!)
+*.csv
+
+# Environment Variables (Keep your database passwords secret)
+.env
