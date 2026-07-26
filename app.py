@@ -123,9 +123,9 @@ with tab1:
                 
                 # --- RECIPE DISPLAY ---
                 st.markdown("---")
-                st.subheader(f"📖 {selected_recipe['name'].title()}")
+                st.subheader(f" {selected_recipe['name'].title()}")
                 
-                recipe_col1, recipe_col2 = st.columns([1,2])
+                recipe_col1, recipe_col2, recipe_col3= st.columns([1,2,2])
                 with recipe_col1:
                     st.write("**Ingredients:**")
                     for item in selected_recipe['ingredients']:
@@ -142,7 +142,7 @@ with tab1:
                 
                 # --- NEW: SIMILAR DISHES DISPLAY ---
                 st.markdown("---")
-                st.subheader("🤖 Similar Dishes You Might Like")
+                st.subheader("Similar Dishes You Might Like")
                 
                 # We use selected_recipe.name to grab the true original Pandas index of the row
                 original_df_index = selected_recipe.name 
