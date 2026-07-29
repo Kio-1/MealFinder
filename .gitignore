@@ -1,3 +1,10 @@
+# Ignore the massive legacy pickle files
+data/cleaned_recipes.pkl
+data/tfidf_matrix.pkl
+
+# Local Database
+users.json
+
 # Virtual Environments
 .venv/
 venv/
@@ -9,6 +16,4 @@ __pycache__/
 
 # Massive Data Files (Do not upload these to GitHub!)
 *.csv
-
-# Environment Variables (Keep your database passwords secret)
-.env
+tempCodeRunnerFile.python
