@@ -65,7 +65,6 @@ function logout() {
 // 2. DAILY TRACKER & LOCAL DATE LOGIC
 // ==========================================
 function refreshUI(profileData) {
-    // 1. Refresh Tracker
     const dateObj = new Date();
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -103,12 +102,10 @@ function refreshUI(profileData) {
     `;
     document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p>No meals logged today.</p>";
 
-    // 2. Refresh Profile Tab
     document.getElementById('update-weight').value = profileData.stats.weight;
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
     renderGraph(profileData.weight_history);
     
-    // 3. Refresh Wishlist & Groceries
     renderWishlistAndGroceries(profileData.wishlist || []);
 }
 
@@ -224,18 +221,39 @@ function renderWishlistAndGroceries(wishlist) {
         return;
     }
 
-    wishlistContainer.innerHTML = wishlist.map((recipe, idx) => `
+    // Render Saved Recipes with the HTML <details> tag for steps
+    wishlistContainer.innerHTML = wishlist.map((recipe, idx) => {
+        let ingHtml = recipe.ingredients ? recipe.ingredients.map(i => `<li>${i}</li>`).join('') : '';
+        let stepHtml = recipe.steps ? recipe.steps.map((s, i) => `<li>${s.charAt(0).toUpperCase() + s.slice(1)}</li>`).join('') : '';
+
+        return `
         <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 3px solid var(--primary-color);">
-            <h4 style="margin: 0 0 0.5rem 0;">${recipe.name}</h4>
-            <button onclick="toggleWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.2rem 0.5rem;">Remove</button>
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <h4 style="margin: 0 0 0.5rem 0;">${recipe.name}</h4>
+                <button onclick="toggleWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.2rem 0.5rem;">Remove</button>
+            </div>
+            
+            <details style="margin-top: 0.5rem; cursor: pointer;">
+                <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
+                    <strong>Ingredients:</strong>
+                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
+                        ${ingHtml}
+                    </ul>
+                    <strong>Instructions:</strong>
+                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
+                        ${stepHtml}
+                    </ol>
+                </div>
+            </details>
         </div>
-    `).join('');
+        `;
+    }).join('');
 
     let groceryMap = {};
     wishlist.forEach(recipe => {
         if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
             recipe.ingredients.forEach(ingredient => {
-                // Formatting defense check
                 if(typeof ingredient !== 'string') return;
                 let ingClean = ingredient.trim().charAt(0).toUpperCase() + ingredient.trim().slice(1);
                 if(ingClean.length < 2) return;
@@ -282,7 +300,6 @@ function toggleWishlistIndex(index) {
         });
 }
 
-// NEW: Save entire planner combo to wishlist
 async function saveComboToWishlist(mealNamesArray) {
     if (!currentUser) return;
     const res = await fetch(`${API_BASE_URL}/wishlist/add-combo`, {
@@ -330,17 +347,38 @@ document.getElementById('search-btn').addEventListener('click', async () => {
 
         currentSearchResults = data.results; 
 
-        resultsContainer.innerHTML = currentSearchResults.map((recipe, index) => `
+        // Render Search Results with HTML <details> tag for steps
+        resultsContainer.innerHTML = currentSearchResults.map((recipe, index) => {
+            let ingHtml = recipe.ingredients ? recipe.ingredients.map(i => `<li>${i}</li>`).join('') : '';
+            let stepHtml = recipe.steps ? recipe.steps.map((s, i) => `<li>${s.charAt(0).toUpperCase() + s.slice(1)}</li>`).join('') : '';
+
+            return `
             <div class="card" style="margin-top: 1rem;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">${recipe.name}</h3>
                 <p><strong>${recipe.calories} kcal</strong> | <strong>${recipe.protein}g Protein</strong> | ${recipe.minutes} mins</p>
                 <p style="font-size: 0.9rem; color: var(--text-muted);">${recipe.description}</p>
+                
+                <details style="margin-top: 1rem; cursor: pointer;">
+                    <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
+                    <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
+                        <strong>Ingredients:</strong>
+                        <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
+                            ${ingHtml}
+                        </ul>
+                        <strong>Instructions:</strong>
+                        <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
+                            ${stepHtml}
+                        </ol>
+                    </div>
+                </details>
+
                 <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
                     <button onclick="quickLog('${recipe.name.replace(/'/g, "\\'")}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
                     <button onclick="saveRecipeFromSearch(${index})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (error) {
         resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server.</p>";
     }
@@ -406,7 +444,6 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
             }
             const arrayStringForJS = JSON.stringify(mealNamesArray).replace(/'/g, "\\'");
 
-            // Updated Layout for Combo Buttons
             return `
             <div class="card" style="margin-top: 1rem;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">Option ${index + 1}</h3>

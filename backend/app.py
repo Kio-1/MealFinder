@@ -23,21 +23,20 @@ def save_users(data):
     with open('users.json', 'w') as f:
         json.dump(data, f, indent=4)
 
-# --- BULLETPROOF INGREDIENT PARSER ---
-def safe_parse_ingredients(val):
+# --- BULLETPROOF LIST PARSER ---
+# Renamed and used for both ingredients and steps to prevent text-crushing bugs
+def safe_parse_list(val):
     if isinstance(val, list):
         return [str(i).strip() for i in val]
     if isinstance(val, np.ndarray):
         return [str(i).strip() for i in val.tolist()]
     if isinstance(val, str):
         try:
-            # Try to evaluate string representations like "['chicken', 'salt']"
             parsed = ast.literal_eval(val)
             if isinstance(parsed, list):
                 return [str(i).strip() for i in parsed]
         except:
             pass
-        # Fallback: manually strip brackets and split by comma
         cleaned = val.replace('[', '').replace(']', '').replace("'", "").replace('"', '')
         if ',' in cleaned:
             return [i.strip() for i in cleaned.split(',') if i.strip()]
@@ -234,7 +233,6 @@ def toggle_wishlist():
     save_users(users_db)
     return jsonify({"message": "Wishlist updated!", "profile": users_db[username]})
 
-# NEW: Add entire combo to wishlist
 @app.route('/api/wishlist/add-combo', methods=['POST'])
 def add_combo_wishlist():
     data = request.json
@@ -261,7 +259,8 @@ def add_combo_wishlist():
                     "calories": int(row.get("calories", 0)) if pd.notnull(row.get("calories")) else 0,
                     "protein": int(row.get("protein", 0)) if pd.notnull(row.get("protein")) else 0,
                     "minutes": int(row.get("minutes", 0)) if pd.notnull(row.get("minutes")) else 0,
-                    "ingredients": safe_parse_ingredients(row.get("ingredients", "[]"))
+                    "ingredients": safe_parse_list(row.get("ingredients", "[]")),
+                    "steps": safe_parse_list(row.get("steps", "[]")) # Parse steps for wishlist
                 }
                 users_db[username]['wishlist'].append(recipe_obj)
                 added_count += 1
@@ -304,14 +303,16 @@ def search():
     if results.empty:
         return jsonify({"results": []})
         
-    safe_cols = ['name', 'calories', 'protein', 'minutes', 'description', 'ingredients']
+    # Added 'steps' to the safe columns
+    safe_cols = ['name', 'calories', 'protein', 'minutes', 'description', 'ingredients', 'steps']
     for col in safe_cols:
         if col not in results.columns:
             results[col] = ''
             
     clean_results = results[safe_cols].fillna('')
-    # Apply our new bulletproof parser
-    clean_results['ingredients'] = clean_results['ingredients'].apply(safe_parse_ingredients)
+    # Apply parser to both ingredients and steps
+    clean_results['ingredients'] = clean_results['ingredients'].apply(safe_parse_list)
+    clean_results['steps'] = clean_results['steps'].apply(safe_parse_list)
     
     results_json = clean_results.to_json(orient='records')
     return jsonify({"results": json.loads(results_json)})
