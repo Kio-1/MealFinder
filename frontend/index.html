@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MealFinder 🍽️</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div id="auth-screen" class="container" style="max-width: 400px; margin-top: 10vh;">
+        <h1 style="text-align: center; color: var(--primary-color);">MealFinder 🍽️</h1>
+        <div class="card">
+            <h2>Log In</h2>
+            <input type="text" id="login-username" placeholder="Enter your username...">
+            <button id="login-btn" style="width: 100%; margin-top: 1rem;">Enter</button>
+            <p id="auth-error" style="color: #ff4444; font-size: 0.9rem;"></p>
+        </div>
+        <div class="card">
+            <h2>New Profile</h2>
+            <input type="text" id="reg-username" placeholder="Username" style="margin-bottom: 0.5rem;">
+            <div class="search-box" style="margin-bottom: 0.5rem;">
+                <input type="number" id="reg-weight" placeholder="Weight (kg)">
+                <input type="number" id="reg-goal" placeholder="Goal (kg)">
+            </div>
+            <button id="reg-btn" style="width: 100%; background-color: #333; color: white;">Create Profile</button>
+        </div>
+    </div>
+
+    <div id="main-app" class="hidden">
+        <nav class="navbar">
+            <div class="nav-brand">MealFinder 🍽️ <span id="current-user-display" style="font-size: 1rem; color: white; font-weight: normal; margin-left: 1rem;"></span></div>
+            <div class="nav-links">
+                <button class="nav-btn active" onclick="switchTab('tracker')">Tracker</button>
+                <button class="nav-btn" onclick="switchTab('search')">Search Cravings</button>
+                <button class="nav-btn" onclick="switchTab('plan')">Plan Meals</button>
+                <button class="nav-btn" onclick="switchTab('wishlist')">Groceries</button>
+                <button class="nav-btn" onclick="switchTab('profile')">Profile</button>
+                <button class="nav-btn" onclick="logout()" style="color: #ff4444;">Log Out</button>
+            </div>
+        </nav>
+
+        <main class="container">
+            <section id="tracker" class="tab-content active">
+                <h2>Today's Macros 📊</h2>
+                <div class="card" id="macro-display"></div>
+
+                <h2>Log Food</h2>
+                <div class="card search-box">
+                    <input type="text" id="manual-name" placeholder="Food Name">
+                    <input type="number" id="manual-cal" placeholder="Calories" style="width: 30%;">
+                    <input type="number" id="manual-pro" placeholder="Protein (g)" style="width: 30%;">
+                    <button id="log-btn">Add</button>
+                </div>
+
+                <h2>Meals Eaten Today</h2>
+                <div id="daily-log-container"></div>
+            </section>
+
+            <section id="search" class="tab-content hidden">
+                <h2>Find Exactly What You Want</h2>
+                <div class="card search-box">
+                    <input type="text" id="search-input" placeholder="e.g., spicy asian noodles...">
+                    <button id="search-btn">Search</button>
+                </div>
+                <div id="tag-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <button class="tag-btn" onclick="toggleTag(this, 'high-protein')">high-protein</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'low-carb')">low-carb</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'vegetarian')">vegetarian</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'chicken')">chicken</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'dessert')">dessert</button>
+                </div>
+                <div id="search-results" class="results-grid"></div>
+            </section>
+
+            <section id="plan" class="tab-content hidden">
+                <h2>Auto-Generate Meal Combos</h2>
+                <div class="card planner-box">
+                    <div class="input-group">
+                        <label>Calories</label>
+                        <input type="number" id="plan-cal">
+                    </div>
+                    <div class="input-group">
+                        <label>Protein (g)</label>
+                        <input type="number" id="plan-pro">
+                    </div>
+                    <div class="input-group">
+                        <label>Meals</label>
+                        <input type="number" id="plan-meals" value="3">
+                    </div>
+                    <button id="plan-btn">Generate Plan</button>
+                </div>
+                <div id="plan-results"></div>
+            </section>
+            
+            <section id="wishlist" class="tab-content hidden">
+                <h2>Grocery List Compiler 🛒</h2>
+                <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <h3 style="color: var(--primary-color);">Aggregated Grocery List</h3>
+                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">Items mapped to the exact recipes requiring them.</p>
+                        <div class="card" id="grocery-list-render"></div>
+                    </div>
+                    <div style="flex: 1; min-width: 300px;">
+                        <h3>Saved Recipes</h3>
+                        <div id="wishlist-render"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="profile" class="tab-content hidden">
+                <h2>Your Profile & Progress</h2>
+                <div class="card">
+                    <h3>Update Stats & Goals</h3>
+                    <div class="search-box" style="margin-bottom: 1rem;">
+                        <input type="number" id="update-weight" placeholder="Current Weight (kg)">
+                        <input type="number" id="update-goal" placeholder="Goal Weight (kg)">
+                        <button id="update-profile-btn">Save Changes</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Weight History Chart</h3>
+                    <canvas id="weightChart"></canvas> 
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
