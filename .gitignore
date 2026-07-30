@@ -15,5 +15,4 @@ __pycache__/
 *.pyc
 
 # Massive Data Files (Do not upload these to GitHub!)
-*.csv
-tempCodeRunnerFile.python
+*.csv   
