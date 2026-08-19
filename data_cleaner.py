@@ -15,7 +15,7 @@ df = df.dropna(subset=['name', 'nutrition'])
 
 # Randomly sample 25,000 recipes for the fast prototype
 df = df.sample(n=200000, random_state=42).reset_index(drop=True)
-
+    
 # 3. Convert the string representation of lists into actual Python lists
 print("Converting string lists to Python lists (this will take a few seconds)...")
 df['tags'] = df['tags'].apply(ast.literal_eval)

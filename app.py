@@ -151,57 +151,53 @@ st.title("MealFinder 🍽️")
 if not st.session_state['current_user']:
     st.write("Welcome! Please log in or create a profile to continue.")
     
-    col_login, col_register = st.columns(2)
-    
-    with col_login:
-        st.subheader("Log In")
-        if users_db:
-            selected_user = st.selectbox("Select existing profile", ["-- Select Profile --"] + list(users_db.keys()))
-            if selected_user != "-- Select Profile --":
-                st.session_state['current_user'] = selected_user
-                st.rerun()
-        else:
-            st.info("No profiles found. Create one to get started!")
+    st.subheader("Log In")
+    if users_db:
+        selected_user = st.selectbox("Select existing profile", ["-- Select Profile --"] + list(users_db.keys()))
+        if selected_user != "-- Select Profile --":
+            st.session_state['current_user'] = selected_user
+            st.rerun()
+    else:
+        st.info("No profiles found. Create one to get started!")
 
-    with col_register:
-        st.subheader("Create New Profile")
-        with st.form("register_form"):
-            new_username = st.text_input("Username")
-            sex = st.selectbox("Sex", ["Male", "Female"])
-            age = st.number_input("Age", min_value=10, max_value=100, value=19)
-            height = st.number_input("Height (cm)", min_value=100, max_value=250, value=181)
-            weight = st.number_input("Weight (kg)", min_value=30.0, max_value=200.0, value=88.0)
-            goal_weight = st.number_input("Goal Weight (kg)", min_value=30.0, max_value=200.0, value=80.0)
-            activity = st.selectbox("Activity Level", ["Low", "Medium", "High"])
-            
-            if st.form_submit_button("Register"):
-                if new_username in users_db:
-                    st.error("Username already exists!")
-                elif new_username:
-                    if sex == "Male":
-                        bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
-                    else:
-                        bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
-                    
-                    multipliers = {"Low": 1.2, "Medium": 1.55, "High": 1.725}
-                    maintenance = bmr * multipliers[activity]
-                    
-                    target_cals = maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance
-                    target_pro = weight * 2 
-                    
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    users_db[new_username] = {
-                        "stats": {"sex": sex, "age": age, "height": height, "weight": weight, "activity": activity},
-                        "goals": {"goal_weight": goal_weight},
-                        "macros": {"target_cals": int(target_cals), "target_pro": int(target_pro)},
-                        "history": {},
-                        "weight_history": {now_str: weight},
-                        "wishlist": [] 
-                    }
-                    save_users(users_db)
-                    st.session_state['current_user'] = new_username
-                    st.rerun()
+    st.subheader("Create New Profile")
+    with st.form("register_form"):
+        new_username = st.text_input("Username")
+        sex = st.selectbox("Sex", ["Male", "Female"])
+        age = st.number_input("Age", min_value=10, max_value=100, value=19)
+        height = st.number_input("Height (cm)", min_value=100, max_value=250, value=181)
+        weight = st.number_input("Weight (kg)", min_value=30.0, max_value=200.0, value=88.0)
+        goal_weight = st.number_input("Goal Weight (kg)", min_value=30.0, max_value=200.0, value=80.0)
+        activity = st.selectbox("Activity Level", ["Low", "Medium", "High"])
+        
+        if st.form_submit_button("Register"):
+            if new_username in users_db:
+                st.error("Username already exists!")
+            elif new_username:
+                if sex == "Male":
+                    bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
+                else:
+                    bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
+                
+                multipliers = {"Low": 1.2, "Medium": 1.55, "High": 1.725}
+                maintenance = bmr * multipliers[activity]
+                
+                target_cals = maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance
+                target_pro = weight * 2 
+                
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                users_db[new_username] = {
+                    "stats": {"sex": sex, "age": age, "height": height, "weight": weight, "activity": activity},
+                    "goals": {"goal_weight": goal_weight},
+                    "macros": {"target_cals": int(target_cals), "target_pro": int(target_pro)},
+                    "history": {},
+                    "weight_history": {now_str: weight},
+                    "wishlist": [] 
+                }
+                save_users(users_db)
+                st.session_state['current_user'] = new_username
+                st.rerun()
 
     st.stop()
 
@@ -211,7 +207,7 @@ st.sidebar.header("Navigation")
 page = st.sidebar.radio("Go to", ["Home / Tracker", "Search Cravings", "Plan Meals", "Groceries", "Update Profile"])
 
 st.sidebar.markdown("---")
-st.sidebar.write(f"👤 **Logged in as:** {st.session_state['current_user']}")
+st.sidebar.write(f"**Logged in as:** {st.session_state['current_user']}")
 if st.sidebar.button("Log Out"):
     st.session_state['current_user'] = None
     st.session_state['combo_results'] = None
@@ -223,7 +219,7 @@ if page == "Home / Tracker":
     user = st.session_state['current_user']
     profile = users_db[user]
     
-    st.header(f"Welcome back, {user}! 👋")
+    st.header(f"Welcome back, {user}!")
     st.markdown("---")
     
     target_cals = profile['macros']['target_cals']
@@ -238,7 +234,7 @@ if page == "Home / Tracker":
     cals_eaten = sum(item['calories'] for item in todays_log)
     pro_eaten = sum(item['protein'] for item in todays_log)
     
-    st.subheader("Today's Macros 📊")
+    st.subheader("Today's Macros")
     progress_val = min(cals_eaten / target_cals, 1.0)
     st.progress(progress_val)
     st.write(f"**{cals_eaten} / {target_cals} Calories** | **{pro_eaten} / {target_pro}g Protein**")
@@ -276,7 +272,7 @@ if page == "Home / Tracker":
 
     st.markdown("---")
 
-    st.subheader("Goal Progress 🎯")
+    st.subheader("Goal Progress")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if 'weight_history' not in profile:
         profile['weight_history'] = {now_str: profile['stats']['weight']}
@@ -296,7 +292,7 @@ if page == "Home / Tracker":
         )
         
     with col_update:
-        with st.popover("⚖️ Log New Weight"):
+        with st.popover("Log New Weight"):
             new_weight = st.number_input("Today's Weight (kg)", value=float(current_weight), step=0.1)
             if st.button("Update Weight"):
                 users_db[user]['stats']['weight'] = new_weight
@@ -348,7 +344,7 @@ elif page == "Search Cravings":
         if results.empty:
             st.warning("No matches found.")
         else:
-            st.write("💡 **Tip:** Click any column header to sort. Click the left edge of a row to reveal the recipe!")
+            st.write("**Tip:** Click any column header to sort. Click the left edge of a row to reveal the recipe!")
             display_df = results[['name', 'calories', 'protein', 'minutes']]
 
             selection_event = st.dataframe(
@@ -363,7 +359,7 @@ elif page == "Search Cravings":
                 selected_recipe = results.iloc[clicked_row_index]
                 
                 st.markdown("---")
-                st.subheader(f"📖 {selected_recipe['name'].title()}")
+                st.subheader(f"{selected_recipe['name'].title()}")
                 
                 if pd.notna(selected_recipe.get('description', '')) and selected_recipe.get('description', '') != '':
                     st.write(f"*{selected_recipe['description']}*")
@@ -414,7 +410,7 @@ elif page == "Search Cravings":
                         st.write(f"{i+1}. {step.capitalize()}")
                 
                 st.markdown("---")
-                st.subheader("🤖 Similar Dishes You Might Like")
+                st.subheader("Similar Dishes You Might Like")
                 
                 original_df_index = selected_recipe.name 
                 similar_results = get_similar_recipes(original_df_index)
@@ -456,7 +452,7 @@ elif page == "Plan Meals":
         n_meals_mem = st.session_state['n_meals_memory']
         st.subheader(f"Optimal {n_meals_mem}-Meal Combos")
         
-        st.write("💡 **Tip:** Click on a combo row to see the recipes inside it!")
+        st.write("**Tip:** Click on a combo row to see the recipes inside it!")
         selection_event = st.dataframe(
             combo_results,
             use_container_width=True,
@@ -469,7 +465,7 @@ elif page == "Plan Meals":
             selected_combo = combo_results.iloc[clicked_row_index]
             
             st.markdown("---")
-            st.subheader("🍽️ Combo Details")
+            st.subheader("Combo Details")
             
             col_log, col_grocery = st.columns(2)
             with col_log:
@@ -576,7 +572,7 @@ elif page == "Groceries":
         with col_recipes:
             st.subheader("Saved Recipes")
             for i, recipe in enumerate(wishlist):
-                with st.expander(f"📖 {recipe['name']}"):
+                with st.expander(f"{recipe['name']}"):
                     st.write(f"**Macros:** {recipe.get('calories', 0)} kcal | {recipe.get('protein', 0)}g protein")
                     
                     if st.button("❌ Remove Recipe", key=f"remove_wishlist_{i}"):
