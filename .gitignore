@@ -1,9 +1,9 @@
 # Ignore the massive legacy pickle files
-data/cleaned_recipes.pkl
-data/tfidf_matrix.pkl
+backend/data/cleaned_recipes.pkl
+backend/data/tfidf_matrix.pkl
 
 # Local Database
-users.json
+backend/users.json
 
 # Virtual Environments
 .venv/
