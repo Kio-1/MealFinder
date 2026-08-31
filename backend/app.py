@@ -298,26 +298,34 @@ def search():
     top_n = 100 
 
     try:
-        # 1. Start the Base Request without .limit()
-        req = supabase.table('recipes').select(
-            'name, calories, protein, minutes, description, ingredients, steps, tags'
-        )
-        
-        # 2. Apply Filters (WHERE clauses)
+        formatted_query = ""
         if query:
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
-            if formatted_query:
-                req = req.text_search('search_vector', formatted_query)
             
-        if tags_filter:
-            req = req.contains('tags', tags_filter)
+        # THE FIX: Explicit branching bypasses the SDK's method-chaining bug entirely.
+        if formatted_query and tags_filter:
+            res = supabase.table('recipes').select(
+                'name, calories, protein, minutes, description, ingredients, steps, tags'
+            ).text_search('search_vector', formatted_query).contains('tags', tags_filter).limit(top_n).execute()
             
-        # 3. Apply Modifiers and Execute (LIMIT)
-        res = req.limit(top_n).execute()
+        elif formatted_query:
+            res = supabase.table('recipes').select(
+                'name, calories, protein, minutes, description, ingredients, steps, tags'
+            ).text_search('search_vector', formatted_query).limit(top_n).execute()
+            
+        elif tags_filter:
+            res = supabase.table('recipes').select(
+                'name, calories, protein, minutes, description, ingredients, steps, tags'
+            ).contains('tags', tags_filter).limit(top_n).execute()
+            
+        else:
+            res = supabase.table('recipes').select(
+                'name, calories, protein, minutes, description, ingredients, steps, tags'
+            ).limit(top_n).execute()
+
         results = res.data
 
-        # 4. Clean Data
         for r in results:
             r['ingredients'] = safe_parse_list(r.get('ingredients', []))
             r['steps'] = safe_parse_list(r.get('steps', []))
