@@ -17,3 +17,4 @@ __pycache__/
 # Massive Data Files (Do not upload these to GitHub!)
 *.csv   
 backend/data/
+backend/upload_to_supabase.py

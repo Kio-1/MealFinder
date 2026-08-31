@@ -55,6 +55,14 @@ def safe_parse_list(val):
 def status():
     return jsonify({"status": "MealFinder Backend Online"})
 
+# THE FIX: Restored endpoint for Grocery Removal
+@app.route('/api/user/<username>', methods=['GET'])
+def get_user_profile(username):
+    profile = load_user(username)
+    if not profile:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"profile": profile})
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json or {}
@@ -82,7 +90,6 @@ def register():
     goal_weight = float(data.get('goal_weight', 80))
     activity = data.get('activity', 'Medium')
     
-    # Check if exists
     res = supabase.table('users').select('username').eq('username', username).execute()
     if res.data:
         return jsonify({"error": "Username exists!"}), 400
@@ -308,14 +315,7 @@ def search():
 
     results = []
     try:
-        if query:
-            exact_res = supabase.table('recipes') \
-                .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
-                .ilike('name', f"%{query}%") \
-                .limit(top_n) \
-                .execute()
-            results.extend(exact_res.data)
-
+        # THE FIX: Removed .ilike() exact string matching to prevent 57014 Server Timeouts
         search_terms = f"{query} {' '.join(tags_filter)}".strip()
         if search_terms:
             formatted_query = ' & '.join(search_terms.replace("'", "").split())
@@ -330,6 +330,7 @@ def search():
                 except Exception:
                     pass
 
+        # Tag Fallback
         if not results and tags_filter:
             tag_res = supabase.table('recipes') \
                 .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
@@ -355,7 +356,6 @@ def search():
         return jsonify({"results": deduped_results[:top_n]})
         
     except Exception as e:
-        # This will send the exact Python error to the frontend if your manual row causes a crash
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/plan', methods=['POST'])
@@ -364,9 +364,8 @@ def plan():
     target_cal = int(data.get('calories', 2000))
     target_pro = int(data.get('protein', 120))
     num_meals = int(data.get('meals', 3))
-    tags_filter = data.get('tags', []) # New tag filter from frontend
+    tags_filter = data.get('tags', []) 
 
-    # Fetch 1500 random recipes instantly
     max_db_id = 192500 
     random_ids = random.sample(range(1, max_db_id), 1500)
     
@@ -379,7 +378,6 @@ def plan():
     except Exception as e:
         return jsonify({"results": [], "message": f"Database query failed: {str(e)}"}), 500
 
-    # Filter pool by requested tags (e.g. Veg, Beef)
     if tags_filter:
         filtered_pool = []
         for recipe in candidate_pool:
