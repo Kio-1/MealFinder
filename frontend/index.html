@@ -67,10 +67,21 @@
                     <button class="tag-btn" onclick="toggleTag(this, 'high-protein')">high-protein</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'low-carb')">low-carb</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'vegetarian')">vegetarian</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'vegan')">vegan</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'chicken')">chicken</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'beef')">beef</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'pork')">pork</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'dessert')">dessert</button>
                 </div>
+                
                 <div id="search-results" class="results-grid"></div>
+                
+                <!-- Pagination Controls -->
+                <div id="pagination-controls" class="hidden" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem;">
+                    <button id="prev-btn" onclick="changePage(-1)" style="padding: 0.5rem 1rem; background: #333; color: white;">&larr; Prev</button>
+                    <span id="page-indicator" style="font-weight: bold; color: var(--primary-color);">Tab 1 of 5</span>
+                    <button id="next-btn" onclick="changePage(1)" style="padding: 0.5rem 1rem; background: #333; color: white;">Next &rarr;</button>
+                </div>
             </section>
 
             <section id="plan" class="tab-content hidden">
@@ -112,11 +123,13 @@
                 <h2>Your Profile & Progress</h2>
                 <div class="card">
                     <h3>Update Stats & Goals</h3>
-                    <div class="search-box" style="margin-bottom: 1rem;">
+                    <div class="search-box" style="margin-bottom: 0.5rem;">
                         <input type="number" id="update-weight" placeholder="Current Weight (kg)">
+                        <input type="number" id="update-height" placeholder="Height (cm)">
                         <input type="number" id="update-goal" placeholder="Goal Weight (kg)">
-                        <button id="update-profile-btn">Save Changes</button>
                     </div>
+                    <button id="update-profile-btn" style="width: 100%; margin-bottom: 1rem;">Save Changes</button>
+                    <p id="bmi-display" style="color: var(--primary-color); font-weight: bold; text-align: center; margin: 0;"></p>
                 </div>
                 <div class="card">
                     <h3>Weight History Chart</h3>

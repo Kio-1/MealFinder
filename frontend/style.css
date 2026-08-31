@@ -102,6 +102,12 @@ button:active {
     transform: scale(0.98);
 }
 
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
 /* --- FILTER TAGS --- */
 .tag-btn { 
     background-color: #333; 

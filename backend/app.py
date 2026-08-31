@@ -13,7 +13,6 @@ CORS(app)
 # ==========================================
 # SUPABASE DATABASE INITIALIZATION
 # ==========================================
-# Reads credentials from environment variables (fallback for local development)
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "YOUR_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "YOUR_SUPABASE_SERVICE_ROLE_KEY")
 
@@ -107,19 +106,22 @@ def update_profile():
     username = data.get('username')
     weight = float(data.get('weight', 0))
     goal_weight = float(data.get('goal_weight', 0))
+    height = float(data.get('height', 181)) # Added height support for BMI
     
     users_db = load_users()
     if username not in users_db:
         return jsonify({"error": "User not found"}), 404
 
     stats = users_db[username]['stats']
-    bmr = (10 * weight) + (6.25 * stats['height']) - (5 * stats['age']) + (5 if stats.get('sex') == "Male" else -161)
+    stats['height'] = height
+    bmr = (10 * weight) + (6.25 * stats['height']) - (5 * stats.get('age', 19)) + (5 if stats.get('sex') == "Male" else -161)
     maintenance = bmr * 1.55
     
     target_cals = int(maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance)
     target_pro = int(weight * 2)
 
     users_db[username]['stats']['weight'] = weight
+    users_db[username]['stats']['height'] = height
     users_db[username]['goals']['goal_weight'] = goal_weight
     users_db[username]['macros'] = {"target_cals": target_cals, "target_pro": target_pro}
 
@@ -164,7 +166,6 @@ def log_combo():
     if today not in users_db[username]['history']:
         users_db[username]['history'][today] = []
 
-    # Query matching recipes from Supabase
     if meal_names:
         response = supabase.table('recipes').select('name, calories, protein').in_('name', meal_names).execute()
         for recipe in response.data:
@@ -195,23 +196,6 @@ def remove_food():
             return jsonify({"error": "Invalid meal index"}), 400
 
     return jsonify({"error": "Record not found"}), 404
-
-@app.route('/api/log-weight', methods=['POST'])
-def log_weight():
-    data = request.json or {}
-    username = data.get('username')
-    new_weight = float(data.get('weight', 0))
-
-    users_db = load_users()
-    if username not in users_db:
-        return jsonify({"error": "User not found"}), 404
-
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    users_db[username]['stats']['weight'] = new_weight
-    users_db[username]['weight_history'][now_str] = new_weight
-
-    save_users(users_db)
-    return jsonify({"message": "Weight logged!", "profile": users_db[username]})
 
 @app.route('/api/wishlist/toggle', methods=['POST'])
 def toggle_wishlist():
@@ -273,18 +257,18 @@ def add_combo_wishlist():
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": users_db[username]})
 
 # ==========================================
-# FULL-TEXT BM25 SEARCH (SUPABASE ENGINE)
+# FULL-TEXT BM25 SEARCH (PAGINATED & STABLE)
 # ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
     data = request.json or {}
     query = data.get('query', '').strip()
     tags_filter = data.get('tags', [])
-    top_n = 10
+    top_n = 100 # Increased to 100 for 5 pages of 20 results
 
     results = []
 
-    # 1. Exact Name Matching
+    # 1. Exact Name Matching (High Priority)
     if query:
         exact_res = supabase.table('recipes') \
             .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
@@ -293,10 +277,9 @@ def search():
             .execute()
         results.extend(exact_res.data)
 
-    # 2. BM25 Text Search via Generated Search Vector
+    # 2. BM25 Text Search
     search_terms = f"{query} {' '.join(tags_filter)}".strip()
     if search_terms:
-        # Format query for PostgreSQL textsearch
         formatted_query = ' & '.join(search_terms.replace("'", "").split())
         if formatted_query:
             try:
@@ -309,7 +292,7 @@ def search():
             except Exception:
                 pass
 
-    # 3. Tag Fallback if search string is empty
+    # 3. Tag Fallback
     if not results and tags_filter:
         tag_res = supabase.table('recipes') \
             .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
@@ -318,23 +301,23 @@ def search():
             .execute()
         results.extend(tag_res.data)
 
-    # Deduplicate results while preserving rank order
+    # Deduplicate and sort alphabetically for consistency
     seen = set()
     deduped_results = []
     for r in results:
         if r['name'] not in seen:
             seen.add(r['name'])
-            # Ensure lists are strictly clean
             r['ingredients'] = safe_parse_list(r.get('ingredients', []))
             r['steps'] = safe_parse_list(r.get('steps', []))
             r['calories'] = int(r.get('calories', 0) or 0)
             r['protein'] = int(r.get('protein', 0) or 0)
             r['minutes'] = int(r.get('minutes', 0) or 0)
             deduped_results.append(r)
-        if len(deduped_results) >= top_n:
-            break
 
-    return jsonify({"results": deduped_results})
+    # Sort alphabetically to guarantee identical responses for identical searches
+    deduped_results.sort(key=lambda x: x['name'])
+    
+    return jsonify({"results": deduped_results[:top_n]})
 
 # ==========================================
 # MONTE CARLO COMBINATORIAL MEAL PLANNER
@@ -346,9 +329,17 @@ def plan():
     target_pro = int(data.get('protein', 120))
     num_meals = int(data.get('meals', 3))
 
-    # Fetch a lightweight candidate pool of 400 random recipes directly from Postgres
+    # FIX: 57014 Timeout Error. 
+    # Fetch 500 random recipes instantly via indexed IDs instead of heavy ORDER BY RANDOM()
+    max_db_id = 192500 
+    random_ids = random.sample(range(1, max_db_id), 500)
+    
     try:
-        response = supabase.rpc('get_random_recipes', {'sample_size': 400}).execute()
+        response = supabase.table('recipes') \
+            .select('name, calories, protein, ingredients, steps') \
+            .in_('id', random_ids) \
+            .limit(400) \
+            .execute()
         candidate_pool = response.data
     except Exception as e:
         return jsonify({"results": [], "message": f"Database query failed: {str(e)}"}), 500
@@ -356,7 +347,6 @@ def plan():
     if not candidate_pool or len(candidate_pool) < num_meals:
         return jsonify({"results": [], "message": "Insufficient recipe sample."})
 
-    # Vectorized Stochastic Simulation in Pure Python (<10ms execution, ~0 MB RAM overhead)
     valid_combos = []
     simulations = 2500
 
@@ -365,20 +355,25 @@ def plan():
         tot_cals = sum(int(m.get('calories', 0) or 0) for m in sampled_meals)
         tot_pro = sum(int(m.get('protein', 0) or 0) for m in sampled_meals)
 
-        # Strict Macro Window Filtering
         if (target_cal - 150 <= tot_cals <= target_cal + 150) and (target_pro - 15 <= tot_pro <= target_pro + 15):
             error_score = abs(tot_cals - target_cal) + (abs(tot_pro - target_pro) * 10)
+            
             combo_obj = {
                 "Total Calories": tot_cals,
                 "Total Protein": tot_pro,
-                "_error": error_score
+                "_error": error_score,
+                "meals": []
             }
-            for i, meal in enumerate(sampled_meals):
-                combo_obj[f"Meal {i+1}"] = meal.get('name')
+            # Attach detailed recipe info for the expandable UI
+            for meal in sampled_meals:
+                combo_obj["meals"].append({
+                    "name": meal.get('name'),
+                    "ingredients": safe_parse_list(meal.get('ingredients', [])),
+                    "steps": safe_parse_list(meal.get('steps', []))
+                })
             valid_combos.append(combo_obj)
 
     if not valid_combos:
-        # Fallback: Relax tolerance slightly if no combinations hit the tight window
         for _ in range(1500):
             sampled_meals = random.sample(candidate_pool, num_meals)
             tot_cals = sum(int(m.get('calories', 0) or 0) for m in sampled_meals)
@@ -388,16 +383,20 @@ def plan():
                 combo_obj = {
                     "Total Calories": tot_cals,
                     "Total Protein": tot_pro,
-                    "_error": error_score
+                    "_error": error_score,
+                    "meals": []
                 }
-                for i, meal in enumerate(sampled_meals):
-                    combo_obj[f"Meal {i+1}"] = meal.get('name')
+                for meal in sampled_meals:
+                    combo_obj["meals"].append({
+                        "name": meal.get('name'),
+                        "ingredients": safe_parse_list(meal.get('ingredients', [])),
+                        "steps": safe_parse_list(meal.get('steps', []))
+                    })
                 valid_combos.append(combo_obj)
 
     if not valid_combos:
-        return jsonify({"results": [], "message": "No combinations found matching those exact targets."})
+        return jsonify({"results": [], "message": "No combinations found matching targets."})
 
-    # Sort by lowest error penalty score and slice the top 5
     valid_combos.sort(key=lambda x: x['_error'])
     top_combos = valid_combos[:5]
 

@@ -1,12 +1,18 @@
-const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api";
+const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api"; 
 let currentUser = null;
 let activeTags = [];
 let weightChartInstance = null; 
 let currentSearchResults = []; 
+let currentPage = 1;
+const RESULTS_PER_PAGE = 20;
 
 // ==========================================
-// 1. AUTHENTICATION 
+// 1. AUTHENTICATION & ENTER KEY LOGIC
 // ==========================================
+document.getElementById('login-username').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
 document.getElementById('login-btn').addEventListener('click', async () => {
     const username = document.getElementById('login-username').value;
     if (!username) return;
@@ -33,7 +39,7 @@ document.getElementById('reg-btn').addEventListener('click', async () => {
     const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, weight, goal_weight: goal })
+        body: JSON.stringify({ username, weight, goal_weight: goal, height: 181 })
     });
     
     if (response.ok) {
@@ -66,10 +72,7 @@ function logout() {
 // ==========================================
 function refreshUI(profileData) {
     const dateObj = new Date();
-    const year = dateObj.getFullYear();
-    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-    const day = String(dateObj.getDate()).padStart(2, '0');
-    const today = `${year}-${month}-${day}`; 
+    const today = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
     
     const log = profileData.history[today] || [];
     let calsEaten = 0;
@@ -103,9 +106,15 @@ function refreshUI(profileData) {
     document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p>No meals logged today.</p>";
 
     document.getElementById('update-weight').value = profileData.stats.weight;
+    document.getElementById('update-height').value = profileData.stats.height || 181;
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
-    renderGraph(profileData.weight_history);
     
+    // Calculate and display BMI
+    const hMeters = (profileData.stats.height || 181) / 100;
+    const bmi = (profileData.stats.weight / (hMeters * hMeters)).toFixed(1);
+    document.getElementById('bmi-display').innerText = `Current BMI: ${bmi}`;
+
+    renderGraph(profileData.weight_history);
     renderWishlistAndGroceries(profileData.wishlist || []);
 }
 
@@ -160,13 +169,14 @@ async function removeFood(index) {
 // ==========================================
 document.getElementById('update-profile-btn').addEventListener('click', async () => {
     const weight = document.getElementById('update-weight').value;
+    const height = document.getElementById('update-height').value;
     const goal = document.getElementById('update-goal').value;
     if (!weight || !goal) return;
 
     const res = await fetch(`${API_BASE_URL}/update-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, weight: weight, goal_weight: goal })
+        body: JSON.stringify({ username: currentUser, weight: weight, height: height, goal_weight: goal })
     });
 
     if (res.ok) {
@@ -211,6 +221,14 @@ function renderGraph(weightHistory) {
 // ==========================================
 // 4. GROCERIES & WISHLIST LOGIC
 // ==========================================
+function parseArrayRobust(arr) {
+    if (Array.isArray(arr)) return arr;
+    if (typeof arr === 'string') {
+        try { return JSON.parse(arr.replace(/'/g, '"')); } catch(e) { return [arr]; }
+    }
+    return [];
+}
+
 function renderWishlistAndGroceries(wishlist) {
     const wishlistContainer = document.getElementById('wishlist-render');
     const groceryContainer = document.getElementById('grocery-list-render');
@@ -221,10 +239,12 @@ function renderWishlistAndGroceries(wishlist) {
         return;
     }
 
-    // Render Saved Recipes with the HTML <details> tag for steps
     wishlistContainer.innerHTML = wishlist.map((recipe, idx) => {
-        let ingHtml = recipe.ingredients ? recipe.ingredients.map(i => `<li>${i}</li>`).join('') : '';
-        let stepHtml = recipe.steps ? recipe.steps.map((s, i) => `<li>${s.charAt(0).toUpperCase() + s.slice(1)}</li>`).join('') : '';
+        let ingArray = parseArrayRobust(recipe.ingredients);
+        let stepArray = parseArrayRobust(recipe.steps);
+        
+        let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
+        let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
 
         return `
         <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 3px solid var(--primary-color);">
@@ -237,13 +257,9 @@ function renderWishlistAndGroceries(wishlist) {
                 <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
                 <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
                     <strong>Ingredients:</strong>
-                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
-                        ${ingHtml}
-                    </ul>
+                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${ingHtml}</ul>
                     <strong>Instructions:</strong>
-                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
-                        ${stepHtml}
-                    </ol>
+                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${stepHtml}</ol>
                 </div>
             </details>
         </div>
@@ -252,16 +268,14 @@ function renderWishlistAndGroceries(wishlist) {
 
     let groceryMap = {};
     wishlist.forEach(recipe => {
-        if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-            recipe.ingredients.forEach(ingredient => {
-                if(typeof ingredient !== 'string') return;
-                let ingClean = ingredient.trim().charAt(0).toUpperCase() + ingredient.trim().slice(1);
-                if(ingClean.length < 2) return;
-                
-                if (!groceryMap[ingClean]) groceryMap[ingClean] = [];
-                groceryMap[ingClean].push(recipe.name);
-            });
-        }
+        let ingArray = parseArrayRobust(recipe.ingredients);
+        ingArray.forEach(ingredient => {
+            if(typeof ingredient !== 'string') return;
+            let ingClean = ingredient.trim().charAt(0).toUpperCase() + ingredient.trim().slice(1);
+            if(ingClean.length < 2) return;
+            if (!groceryMap[ingClean]) groceryMap[ingClean] = [];
+            groceryMap[ingClean].push(recipe.name);
+        });
     });
 
     const sortedIngredients = Object.keys(groceryMap).sort();
@@ -316,7 +330,7 @@ async function saveComboToWishlist(mealNamesArray) {
 
 
 // ==========================================
-// 5. SEARCH & FILTERS
+// 5. SEARCH, FILTERS & PAGINATION
 // ==========================================
 function toggleTag(btnElement, tagString) {
     btnElement.classList.toggle('selected');
@@ -327,10 +341,17 @@ function toggleTag(btnElement, tagString) {
     }
 }
 
+document.getElementById('search-input').addEventListener('keypress', function (e) {
+    if (e.key === 'Enter') document.getElementById('search-btn').click();
+});
+
 document.getElementById('search-btn').addEventListener('click', async () => {
     const query = document.getElementById('search-input').value;
     const resultsContainer = document.getElementById('search-results');
+    const paginationContainer = document.getElementById('pagination-controls');
+    
     resultsContainer.innerHTML = "<p>Searching database...</p>";
+    paginationContainer.classList.add('hidden');
 
     try {
         const response = await fetch(`${API_BASE_URL}/search`, {
@@ -346,46 +367,78 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         }
 
         currentSearchResults = data.results; 
+        currentPage = 1;
+        renderSearchResults();
 
-        // Render Search Results with HTML <details> tag for steps
-        resultsContainer.innerHTML = currentSearchResults.map((recipe, index) => {
-            let ingHtml = recipe.ingredients ? recipe.ingredients.map(i => `<li>${i}</li>`).join('') : '';
-            let stepHtml = recipe.steps ? recipe.steps.map((s, i) => `<li>${s.charAt(0).toUpperCase() + s.slice(1)}</li>`).join('') : '';
-
-            return `
-            <div class="card" style="margin-top: 1rem;">
-                <h3 style="margin-top: 0; color: var(--primary-color);">${recipe.name}</h3>
-                <p><strong>${recipe.calories} kcal</strong> | <strong>${recipe.protein}g Protein</strong> | ${recipe.minutes} mins</p>
-                <p style="font-size: 0.9rem; color: var(--text-muted);">${recipe.description}</p>
-                
-                <details style="margin-top: 1rem; cursor: pointer;">
-                    <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
-                    <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
-                        <strong>Ingredients:</strong>
-                        <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
-                            ${ingHtml}
-                        </ul>
-                        <strong>Instructions:</strong>
-                        <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">
-                            ${stepHtml}
-                        </ol>
-                    </div>
-                </details>
-
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button onclick="quickLog('${recipe.name.replace(/'/g, "\\'")}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
-                    <button onclick="saveRecipeFromSearch(${index})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
-                </div>
-            </div>
-            `;
-        }).join('');
     } catch (error) {
         resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server.</p>";
     }
 });
 
-function saveRecipeFromSearch(index) {
-    const recipe = currentSearchResults[index];
+function renderSearchResults() {
+    const resultsContainer = document.getElementById('search-results');
+    const paginationContainer = document.getElementById('pagination-controls');
+    
+    const totalPages = Math.ceil(currentSearchResults.length / RESULTS_PER_PAGE);
+    const startIdx = (currentPage - 1) * RESULTS_PER_PAGE;
+    const endIdx = startIdx + RESULTS_PER_PAGE;
+    const pageData = currentSearchResults.slice(startIdx, endIdx);
+
+    resultsContainer.innerHTML = pageData.map((recipe, index) => {
+        let ingArray = parseArrayRobust(recipe.ingredients);
+        let stepArray = parseArrayRobust(recipe.steps);
+        
+        let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
+        let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
+
+        // Calculate global index for saving to wishlist correctly
+        const globalIndex = startIdx + index;
+
+        return `
+        <div class="card" style="margin-top: 1rem;">
+            <h3 style="margin-top: 0; color: var(--primary-color);">${recipe.name}</h3>
+            <p><strong>${recipe.calories} kcal</strong> | <strong>${recipe.protein}g Protein</strong> | ${recipe.minutes} mins</p>
+            <p style="font-size: 0.9rem; color: var(--text-muted);">${recipe.description}</p>
+            
+            <details style="margin-top: 1rem; cursor: pointer;">
+                <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
+                    <strong>Ingredients:</strong>
+                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${ingHtml}</ul>
+                    <strong>Instructions:</strong>
+                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${stepHtml}</ol>
+                </div>
+            </details>
+
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button onclick="quickLog('${recipe.name.replace(/'/g, "\\'")}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
+                <button onclick="saveRecipeFromSearch(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+
+    // Pagination Display
+    if (totalPages > 1) {
+        paginationContainer.classList.remove('hidden');
+        document.getElementById('page-indicator').innerText = `Tab ${currentPage} of ${totalPages}`;
+        document.getElementById('prev-btn').disabled = currentPage === 1;
+        document.getElementById('next-btn').disabled = currentPage === totalPages;
+    } else {
+        paginationContainer.classList.add('hidden');
+    }
+}
+
+function changePage(direction) {
+    const totalPages = Math.ceil(currentSearchResults.length / RESULTS_PER_PAGE);
+    currentPage += direction;
+    if (currentPage < 1) currentPage = 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    renderSearchResults();
+}
+
+function saveRecipeFromSearch(globalIndex) {
+    const recipe = currentSearchResults[globalIndex];
     toggleWishlist(recipe);
     alert(`${recipe.name} added to Groceries!`);
 }
@@ -436,19 +489,40 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
         }
 
         resultsContainer.innerHTML = data.results.map((combo, index) => {
-            let mealList = '';
             let mealNamesArray = [];
-            for (let i = 1; i <= meals; i++) { 
-                mealList += `<li>${combo[`Meal ${i}`]}</li>`; 
-                mealNamesArray.push(combo[`Meal ${i}`]);
-            }
+            
+            // Build the expandable details for each meal in this combo
+            let mealsHtml = combo.meals.map((mealObj, mIdx) => {
+                mealNamesArray.push(mealObj.name);
+                
+                let ingArray = parseArrayRobust(mealObj.ingredients);
+                let stepArray = parseArrayRobust(mealObj.steps);
+                let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
+                let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
+                
+                return `
+                <div style="margin-bottom: 0.8rem; background: #242424; padding: 0.5rem; border-radius: 4px;">
+                    <details style="cursor: pointer;">
+                        <summary style="font-weight: bold; outline: none; color: white;">Meal ${mIdx + 1}: <span style="color: var(--primary-color)">${mealObj.name}</span></summary>
+                        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
+                            <strong>Ingredients:</strong>
+                            <ul style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${ingHtml}</ul>
+                            <strong>Instructions:</strong>
+                            <ol style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${stepHtml}</ol>
+                        </div>
+                    </details>
+                </div>`;
+            }).join('');
+
             const arrayStringForJS = JSON.stringify(mealNamesArray).replace(/'/g, "\\'");
 
             return `
             <div class="card" style="margin-top: 1rem;">
                 <h3 style="margin-top: 0; color: var(--primary-color);">Option ${index + 1}</h3>
-                <p><strong>${combo['Total Calories']} kcal</strong> | <strong>${combo['Total Protein']}g Protein</strong></p>
-                <ul style="color: var(--text-muted); line-height: 1.6;">${mealList}</ul>
+                <p style="margin-bottom: 1rem;"><strong>${combo['Total Calories']} kcal</strong> | <strong>${combo['Total Protein']}g Protein</strong></p>
+                
+                ${mealsHtml}
+
                 <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
                     <button onclick='logCombo(${arrayStringForJS})' style="flex: 1;">+ Log to Tracker</button>
                     <button onclick='saveComboToWishlist(${arrayStringForJS})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
