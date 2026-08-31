@@ -5,6 +5,5 @@
             "envManager": "ms-python.python:venv",
             "packageManager": "ms-python.python:pip"
         }
-    ],
-    "C_Cpp.default.compilerPath": "C:/msys64/ucrt64/bin/g++.exe"
+    ]
 }
