@@ -9,11 +9,18 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+# ==========================================
+# SUPABASE DATABASE INITIALIZATION
+# ==========================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "YOUR_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "YOUR_SUPABASE_SERVICE_ROLE_KEY")
+
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 print("Connected to Supabase. Fully Cloud-Native Backend Ready!")
 
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
 def load_user(username):
     res = supabase.table('users').select('profile_data').eq('username', username).execute()
     if res.data:
@@ -42,7 +49,6 @@ def safe_parse_list(val):
     return []
 
 def calculate_macros(weight, height, age, sex, activity, goal_weight):
-    # Standard Mifflin-St Jeor Equation
     if sex == "Male":
         bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
     else:
@@ -61,6 +67,9 @@ def calculate_macros(weight, height, age, sex, activity, goal_weight):
     target_pro = int(weight * 2)
     return target_cals, target_pro
 
+# ==========================================
+# AUTHENTICATION ENDPOINTS
+# ==========================================
 @app.route('/api/status', methods=['GET'])
 def status():
     return jsonify({"status": "MealFinder Backend Online"})
@@ -128,7 +137,6 @@ def update_profile():
     if not profile:
         return jsonify({"error": "User not found"}), 404
 
-    # Update all fields provided
     stats = profile.get('stats', {})
     stats['weight'] = float(data.get('weight', stats.get('weight', 0)))
     stats['height'] = float(data.get('height', stats.get('height', 181)))
@@ -149,6 +157,9 @@ def update_profile():
     save_user(username, profile)
     return jsonify({"message": "Profile updated!", "profile": profile})
 
+# ==========================================
+# TRACKER ENDPOINTS
+# ==========================================
 @app.route('/api/log-food', methods=['POST'])
 def log_food():
     data = request.json or {}
@@ -184,7 +195,6 @@ def log_combo():
     if today not in profile['history']:
         profile['history'][today] = []
 
-    # Instantly write the provided meal objects directly to history without querying DB
     for meal in meals:
         profile['history'][today].append({
             "name": meal.get('name', 'Unknown Meal'),
@@ -212,6 +222,9 @@ def remove_food():
             return jsonify({"error": "Invalid meal index"}), 400
     return jsonify({"error": "Record not found"}), 404
 
+# ==========================================
+# WISHLIST / GROCERIES ENDPOINTS
+# ==========================================
 @app.route('/api/wishlist/toggle', methods=['POST'])
 def toggle_wishlist():
     data = request.json or {}
@@ -246,7 +259,6 @@ def add_combo_wishlist():
     wishlist = profile.get('wishlist', [])
     added_count = 0
     
-    # Instantly add full meal objects to wishlist without database queries
     for meal in meals:
         if not any(r.get('name') == meal.get('name') for r in wishlist):
             profile['wishlist'].append(meal)
@@ -255,6 +267,9 @@ def add_combo_wishlist():
     save_user(username, profile)
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
+# ==========================================
+# SEARCH & PLANNER ENGINE
+# ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
     data = request.json or {}
@@ -263,21 +278,21 @@ def search():
     top_n = 100 
 
     try:
-        # Start base query
-        req = supabase.table('recipes').select('name, calories, protein, minutes, description, ingredients, steps, tags')
+        # THE FIX: .limit() must be strictly attached to .select() in Supabase Python > 2.0
+        req = supabase.table('recipes').select(
+            'name, calories, protein, minutes, description, ingredients, steps, tags'
+        ).limit(top_n)
         
-        # Apply BM25 Text Search natively if query exists
         if query:
+            # Passes raw query directly into PostgreSQL websearch (handles spaces/syntax natively)
             req = req.text_search('search_vector', query, options={'type': 'websearch'})
             
-        # Apply Array Containment natively if tags exist
         if tags_filter:
             req = req.contains('tags', tags_filter)
             
-        res = req.limit(top_n).execute()
+        res = req.execute()
         results = res.data
 
-        # Parse arrays safely
         for r in results:
             r['ingredients'] = safe_parse_list(r.get('ingredients', []))
             r['steps'] = safe_parse_list(r.get('steps', []))
@@ -300,7 +315,8 @@ def plan():
     num_meals = int(data.get('meals', 3))
     tags_filter = data.get('tags', []) 
 
-    max_db_id = 192500 
+    # Updated to the true database length we confirmed in the last step
+    max_db_id = 195644 
     random_ids = random.sample(range(1, max_db_id), 1500)
     
     try:
