@@ -5,6 +5,7 @@ import ast
 import random
 from datetime import datetime
 import os
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -278,14 +279,18 @@ def search():
     top_n = 100 
 
     try:
-        # THE FIX: .limit() must be strictly attached to .select() in Supabase Python > 2.0
         req = supabase.table('recipes').select(
             'name, calories, protein, minutes, description, ingredients, steps, tags'
         ).limit(top_n)
         
         if query:
-            # Passes raw query directly into PostgreSQL websearch (handles spaces/syntax natively)
-            req = req.text_search('search_vector', query, options={'type': 'websearch'})
+            # re.findall extracts strictly alphanumeric words, stripping all punctuation/quotes
+            safe_words = re.findall(r'\w+', query)
+            # Joins words with the PostgreSQL 'AND' operator (&)
+            formatted_query = ' & '.join(safe_words)
+            
+            if formatted_query:
+                req = req.text_search('search_vector', formatted_query)
             
         if tags_filter:
             req = req.contains('tags', tags_filter)
@@ -315,7 +320,6 @@ def plan():
     num_meals = int(data.get('meals', 3))
     tags_filter = data.get('tags', []) 
 
-    # Updated to the true database length we confirmed in the last step
     max_db_id = 195644 
     random_ids = random.sample(range(1, max_db_id), 1500)
     
