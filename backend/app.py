@@ -288,7 +288,7 @@ def add_combo_wishlist():
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
 # ==========================================
-# SEARCH & PLANNER ENGINE
+# SEARCH ENGINE (BUG-FREE IMMUTABLE EXECUTION)
 # ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
@@ -298,48 +298,62 @@ def search():
     top_n = 100 
 
     try:
+        db_results = []
         formatted_query = ""
+        
         if query:
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
             
-        # THE FIX: Explicit branching bypasses the SDK's method-chaining bug entirely.
-        if formatted_query and tags_filter:
+        # Execute strictly isolated queries to bypass the SDK method-chaining crashes
+        if formatted_query:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).contains('tags', tags_filter).limit(top_n).execute()
-            
-        elif formatted_query:
-            res = supabase.table('recipes').select(
-                'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).limit(top_n).execute()
-            
+            ).text_search('search_vector', formatted_query).execute()
+            db_results = res.data
         elif tags_filter:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).contains('tags', tags_filter).limit(top_n).execute()
-            
+            ).contains('tags', tags_filter).execute()
+            db_results = res.data
         else:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
             ).limit(top_n).execute()
+            db_results = res.data
 
-        results = res.data
+        # Safely filter tags strictly in Python if the user provided BOTH a text query and tags
+        filtered_results = []
+        if formatted_query and tags_filter:
+            for r in db_results:
+                recipe_tags = r.get('tags', []) or []
+                if any(req_tag in recipe_tags for req_tag in tags_filter):
+                    filtered_results.append(r)
+        else:
+            filtered_results = db_results
 
-        for r in results:
-            r['ingredients'] = safe_parse_list(r.get('ingredients', []))
-            r['steps'] = safe_parse_list(r.get('steps', []))
-            r['calories'] = int(r.get('calories', 0) or 0)
-            r['protein'] = int(r.get('protein', 0) or 0)
-            r['minutes'] = int(r.get('minutes', 0) or 0)
-            r['description'] = str(r.get('description', ''))
+        # Clean array formatting and limit to 100 results without disrupting BM25 relevance rank
+        seen = set()
+        final_results = []
+        for r in filtered_results:
+            if r['name'] not in seen:
+                seen.add(r['name'])
+                r['ingredients'] = safe_parse_list(r.get('ingredients', []))
+                r['steps'] = safe_parse_list(r.get('steps', []))
+                r['calories'] = int(r.get('calories', 0) or 0)
+                r['protein'] = int(r.get('protein', 0) or 0)
+                r['minutes'] = int(r.get('minutes', 0) or 0)
+                r['description'] = str(r.get('description', ''))
+                final_results.append(r)
 
-        results.sort(key=lambda x: x['name'])
-        return jsonify({"results": results})
+        return jsonify({"results": final_results[:top_n]})
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ==========================================
+# MONTE CARLO COMBINATORIAL MEAL PLANNER
+# ==========================================
 @app.route('/api/plan', methods=['POST'])
 def plan():
     data = request.json or {}
