@@ -16,3 +16,4 @@ __pycache__/
 
 # Massive Data Files (Do not upload these to GitHub!)
 *.csv   
+backend/data/
