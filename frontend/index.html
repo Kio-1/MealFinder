@@ -28,7 +28,7 @@
             
             <div class="search-box" style="margin-bottom: 0.5rem;">
                 <input type="number" id="reg-age" placeholder="Age (yrs)">
-                <select id="reg-gender" style="background: #242424; color: white; border: 1px solid #333; padding: 0.75rem; border-radius: 4px; flex: 1;">
+                <select id="reg-gender">
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                 </select>
@@ -41,7 +41,7 @@
             
             <div class="search-box" style="margin-bottom: 0.5rem;">
                 <input type="number" id="reg-goal" placeholder="Goal (kg)">
-                <select id="reg-activity" style="background: #242424; color: white; border: 1px solid #333; padding: 0.75rem; border-radius: 4px; flex: 1;">
+                <select id="reg-activity">
                     <option value="Sedentary">Sedentary</option>
                     <option value="Light">Lightly Active</option>
                     <option value="Moderate" selected>Moderately Active</option>
@@ -49,13 +49,13 @@
                 </select>
             </div>
             
-            <button id="reg-btn" style="width: 100%; background-color: #333; color: white; margin-top: 0.5rem;">Create Profile</button>
+            <button id="reg-btn" style="width: 100%; margin-top: 0.5rem;">Create Profile</button>
         </div>
     </div>
 
     <div id="main-app" class="hidden">
         <nav class="navbar">
-            <div class="nav-brand">MealFinder 🍽️ <span id="current-user-display" style="font-size: 1rem; color: white; font-weight: normal; margin-left: 1rem;"></span></div>
+            <div class="nav-brand">MealFinder 🍽️ <span id="current-user-display" style="font-size: 1rem; color: white; font-weight: normal; margin-left: 0.5rem;"></span></div>
             <div class="nav-links">
                 <button class="nav-btn active" onclick="switchTab('tracker')">Tracker</button>
                 <button class="nav-btn" onclick="switchTab('search')">Search Cravings</button>
@@ -142,14 +142,14 @@
             <section id="wishlist" class="tab-content hidden">
                 <h2>Grocery List Compiler 🛒</h2>
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                    <select id="currency-selector" onchange="calculatePrice()" style="background: #242424; color: white; border: 1px solid #333; padding: 0.5rem; border-radius: 4px;">
+                    <select id="currency-selector" onchange="calculatePrice()" style="width: auto;">
                         <option value="India">India (₹)</option>
                         <option value="USA">USA ($)</option>
                         <option value="UK">UK (£)</option>
                         <option value="Europe">Europe (€)</option>
                     </select>
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
+                <div class="split-layout" style="display: flex; flex-wrap: wrap; gap: 2rem;">
                     <div style="flex: 1; min-width: 300px;">
                         <h3 style="color: var(--primary-color); display: flex; justify-content: space-between;">
                             Aggregated List <span id="price-estimate" style="color: white; font-size: 1rem;"></span>
@@ -170,7 +170,7 @@
                     <h3>Update Stats & Goals</h3>
                     <div class="search-box" style="margin-bottom: 0.5rem;">
                         <input type="number" id="update-age" placeholder="Age">
-                        <select id="update-gender" style="background: #242424; color: white; border: 1px solid #333; padding: 0.75rem; border-radius: 4px; flex: 1;">
+                        <select id="update-gender">
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                         </select>
@@ -181,7 +181,7 @@
                     </div>
                     <div class="search-box" style="margin-bottom: 0.5rem;">
                         <input type="number" id="update-goal" placeholder="Goal Weight (kg)">
-                        <select id="update-activity" style="background: #242424; color: white; border: 1px solid #333; padding: 0.75rem; border-radius: 4px; flex: 1;">
+                        <select id="update-activity">
                             <option value="Sedentary">Sedentary</option>
                             <option value="Light">Lightly Active</option>
                             <option value="Moderate">Moderately Active</option>
@@ -191,9 +191,9 @@
                     
                     <button id="update-profile-btn" style="width: 100%; margin-bottom: 1rem;">Recalculate Macros & Save</button>
                     
-                    <div style="display: flex; justify-content: space-around; background: #242424; padding: 1rem; border-radius: 8px;">
-                        <p style="margin: 0;"><strong>BMI:</strong> <span id="bmi-display" style="color: var(--primary-color);"></span></p>
-                        <p style="margin: 0;"><strong>Category:</strong> <span id="bmi-category" style="color: var(--primary-color);"></span></p>
+                    <div style="display: flex; justify-content: space-around; background: #242424; padding: 1rem; border-radius: 8px; flex-wrap: wrap;">
+                        <p style="margin: 0.5rem 0;"><strong>BMI:</strong> <span id="bmi-display" style="color: var(--primary-color);"></span></p>
+                        <p style="margin: 0.5rem 0;"><strong>Category:</strong> <span id="bmi-category" style="color: var(--primary-color);"></span></p>
                     </div>
                 </div>
                 <div class="card">

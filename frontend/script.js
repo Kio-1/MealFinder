@@ -108,9 +108,9 @@ function refreshUI(profileData) {
         calsEaten += Number(item.calories);
         proEaten += Number(item.protein);
         mealsHtml += `
-            <div class="card" style="display: flex; justify-content: space-between; padding: 1rem; margin-bottom: 0.5rem;">
+            <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; margin-bottom: 0.5rem;">
                 <span>✅ <strong>${item.name}</strong> (${item.calories} kcal | ${item.protein}g)</span>
-                <button onclick="removeFood(${index})" style="background:transparent; border:none; color:#ff4444; cursor:pointer; font-size:1.2rem;" title="Remove Meal">❌</button>
+                <button onclick="removeFood(${index})" style="background:transparent; border:none; color:#ff4444; cursor:pointer; font-size:1.2rem; padding: 0;" title="Remove Meal">❌</button>
             </div>
         `;
     });
@@ -287,9 +287,9 @@ function renderWishlistAndGroceries(wishlist) {
 
         return `
         <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 3px solid var(--primary-color);">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">
                 <h4 style="margin: 0 0 0.5rem 0;">${recipe.name}</h4>
-                <button onclick="removeWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.2rem 0.5rem;">Remove</button>
+                <button onclick="removeWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.3rem 0.6rem; font-size: 0.8rem;">Remove</button>
             </div>
             
             <details style="margin-top: 0.5rem; cursor: pointer;">
@@ -358,7 +358,7 @@ function removeWishlistIndex(index) {
     });
 }
 
-// O(1) Instant Functions: Passing Full Data to Server
+// O(1) Instant Functions
 async function logPlanCombo(comboIndex) {
     if (!currentUser) return;
     const combo = currentPlanResults[comboIndex];
@@ -506,9 +506,9 @@ function renderSearchResults() {
                 </div>
             </details>
 
-            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                <button onclick="logSingleMeal('${safeName}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
-                <button onclick="saveSearchRecipeToWishlist(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
+            <div class="action-buttons">
+                <button onclick="logSingleMeal('${safeName}', ${recipe.calories}, ${recipe.protein})">+ Add to Tracker</button>
+                <button onclick="saveSearchRecipeToWishlist(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
             </div>
         </div>
         `;
@@ -584,9 +584,9 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                             <strong>Instructions:</strong>
                             <ol style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${stepHtml}</ol>
                             
-                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                                <button onclick="logSingleMeal('${safeName}', ${mealObj.calories}, ${mealObj.protein})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Log Meal</button>
-                                <button onclick="savePlanMealToWishlist(${comboIndex}, ${mIdx})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                            <div class="action-buttons">
+                                <button onclick="logSingleMeal('${safeName}', ${mealObj.calories}, ${mealObj.protein})">+ Log Meal</button>
+                                <button onclick="savePlanMealToWishlist(${comboIndex}, ${mIdx})" style="background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
                             </div>
                         </div>
                     </details>
@@ -600,9 +600,9 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                 
                 ${mealsHtml}
 
-                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button onclick='logPlanCombo(${comboIndex})' style="flex: 1;">+ Log Combo to Tracker</button>
-                    <button onclick='savePlanComboToWishlist(${comboIndex})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
+                <div class="action-buttons">
+                    <button onclick='logPlanCombo(${comboIndex})'>+ Log Combo to Tracker</button>
+                    <button onclick='savePlanComboToWishlist(${comboIndex})' style="background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
                 </div>
             </div>`;
         }).join('');

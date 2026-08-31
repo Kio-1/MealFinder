@@ -30,6 +30,12 @@ body {
     color: var(--primary-color);
 }
 
+.nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
 .nav-btn {
     background: none;
     border: none;
@@ -70,7 +76,7 @@ body {
 }
 
 /* --- INPUTS & BUTTONS --- */
-input {
+input, select {
     background-color: #242424;
     border: 1px solid #333;
     color: white;
@@ -81,7 +87,7 @@ input {
     box-sizing: border-box;
 }
 
-input:focus {
+input:focus, select:focus {
     outline: none;
     border-color: var(--primary-color);
 }
@@ -139,4 +145,75 @@ button:disabled {
     flex-direction: column;
     gap: 0.5rem;
     flex: 1;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.action-buttons button {
+    flex: 1;
+}
+
+/* ==========================================
+   MOBILE RESPONSIVENESS (Screens under 768px)
+   ========================================== */
+@media (max-width: 768px) {
+    .navbar {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .nav-links {
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .nav-btn {
+        margin-left: 0;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.9rem;
+    }
+
+    .search-box, .planner-box {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.8rem;
+    }
+
+    /* Force all inputs to take full width on mobile regardless of inline styles */
+    .search-box input, 
+    .planner-box input, 
+    input[style*="width: 30%"] {
+        width: 100% !important;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons button {
+        width: 100%;
+    }
+
+    /* Stack Wishlist & Groceries side-by-side columns */
+    .split-layout {
+        flex-direction: column;
+        gap: 1rem !important;
+    }
+
+    .split-layout > div {
+        min-width: 100% !important;
+    }
+
+    .container {
+        margin: 1rem auto;
+    }
+
+    .card {
+        padding: 1rem;
+    }
 }
