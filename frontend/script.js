@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://127.0.0.1:5000/api";
+const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api";
 let currentUser = null;
 let activeTags = [];
 let weightChartInstance = null; 
