@@ -298,10 +298,12 @@ def search():
     top_n = 100 
 
     try:
+        # 1. Start the Base Request without .limit()
         req = supabase.table('recipes').select(
             'name, calories, protein, minutes, description, ingredients, steps, tags'
-        ).limit(top_n)
+        )
         
+        # 2. Apply Filters (WHERE clauses)
         if query:
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
@@ -311,9 +313,11 @@ def search():
         if tags_filter:
             req = req.contains('tags', tags_filter)
             
-        res = req.execute()
+        # 3. Apply Modifiers and Execute (LIMIT)
+        res = req.limit(top_n).execute()
         results = res.data
 
+        # 4. Clean Data
         for r in results:
             r['ingredients'] = safe_parse_list(r.get('ingredients', []))
             r['steps'] = safe_parse_list(r.get('steps', []))
