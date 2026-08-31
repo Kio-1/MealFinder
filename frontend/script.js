@@ -4,6 +4,7 @@ let searchTags = [];
 let planTags = [];
 let weightChartInstance = null; 
 let currentSearchResults = []; 
+let currentPlanResults = [];
 let currentPage = 1;
 const RESULTS_PER_PAGE = 20;
 let globalIngredientCount = 0;
@@ -39,16 +40,26 @@ document.getElementById('login-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('reg-btn').addEventListener('click', async () => {
-    const username = document.getElementById('reg-username').value;
-    const password = document.getElementById('reg-pass').value;
-    const weight = document.getElementById('reg-weight').value;
-    const goal = document.getElementById('reg-goal').value;
-    if (!username || !password || !weight || !goal) return;
+    const payload = {
+        username: document.getElementById('reg-username').value,
+        password: document.getElementById('reg-pass').value,
+        age: document.getElementById('reg-age').value,
+        sex: document.getElementById('reg-gender').value,
+        weight: document.getElementById('reg-weight').value,
+        height: document.getElementById('reg-height').value,
+        goal_weight: document.getElementById('reg-goal').value,
+        activity: document.getElementById('reg-activity').value
+    };
+
+    if (!payload.username || !payload.password || !payload.weight || !payload.goal_weight || !payload.height) {
+        alert("Please fill out all fields.");
+        return;
+    }
 
     const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, weight, goal_weight: goal, height: 181 })
+        body: JSON.stringify(payload)
     });
     
     const data = await response.json();
@@ -119,13 +130,24 @@ function refreshUI(profileData) {
     `;
     document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p>No meals logged today.</p>";
 
+    // Populate Profile Tab
+    document.getElementById('update-age').value = profileData.stats.age || 19;
+    document.getElementById('update-gender').value = profileData.stats.sex || 'Male';
     document.getElementById('update-weight').value = profileData.stats.weight;
     document.getElementById('update-height').value = profileData.stats.height || 181;
+    document.getElementById('update-activity').value = profileData.stats.activity || 'Moderate';
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
     
+    // BMI Logic
     const hMeters = (profileData.stats.height || 181) / 100;
     const bmi = (profileData.stats.weight / (hMeters * hMeters)).toFixed(1);
-    document.getElementById('bmi-display').innerText = `Current BMI: ${bmi}`;
+    let category = "Normal";
+    if (bmi < 18.5) category = "Underweight";
+    else if (bmi >= 25 && bmi < 30) category = "Overweight";
+    else if (bmi >= 30) category = "Obese";
+
+    document.getElementById('bmi-display').innerText = bmi;
+    document.getElementById('bmi-category').innerText = category;
 
     renderGraph(profileData.weight_history);
     renderWishlistAndGroceries(profileData.wishlist || []);
@@ -151,17 +173,17 @@ document.getElementById('log-btn').addEventListener('click', async () => {
     }
 });
 
-async function logCombo(mealNamesArray) {
+async function logSingleMeal(name, cal, pro) {
     if (!currentUser) return;
-    const res = await fetch(`${API_BASE_URL}/log-combo`, {
+    const res = await fetch(`${API_BASE_URL}/log-food`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, meals: mealNamesArray })
+        body: JSON.stringify({ username: currentUser, name: name, calories: cal, protein: pro })
     });
     if (res.ok) {
         const data = await res.json();
         refreshUI(data.profile);
-        alert("Entire combo logged successfully to your Tracker!");
+        alert(`${name} logged for today!`);
     }
 }
 
@@ -181,20 +203,25 @@ async function removeFood(index) {
 // 3. PROFILE & GRAPH LOGIC
 // ==========================================
 document.getElementById('update-profile-btn').addEventListener('click', async () => {
-    const weight = document.getElementById('update-weight').value;
-    const height = document.getElementById('update-height').value;
-    const goal = document.getElementById('update-goal').value;
-    if (!weight || !goal) return;
+    const payload = {
+        username: currentUser,
+        age: document.getElementById('update-age').value,
+        sex: document.getElementById('update-gender').value,
+        weight: document.getElementById('update-weight').value,
+        height: document.getElementById('update-height').value,
+        goal_weight: document.getElementById('update-goal').value,
+        activity: document.getElementById('update-activity').value
+    };
 
     const res = await fetch(`${API_BASE_URL}/update-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, weight: weight, height: height, goal_weight: goal })
+        body: JSON.stringify(payload)
     });
 
     if (res.ok) {
         const data = await res.json();
-        alert("Profile Updated!");
+        alert("Profile Updated! Macros have been recalculated.");
         document.getElementById('plan-cal').value = data.profile.macros.target_cals;
         document.getElementById('plan-pro').value = data.profile.macros.target_pro;
         refreshUI(data.profile);
@@ -257,7 +284,6 @@ function renderWishlistAndGroceries(wishlist) {
     wishlistContainer.innerHTML = wishlist.map((recipe, idx) => {
         let ingArray = parseArrayRobust(recipe.ingredients);
         let stepArray = parseArrayRobust(recipe.steps);
-        
         let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
         let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
 
@@ -315,7 +341,6 @@ function calculatePrice() {
     let price = 0;
     let symbol = '';
     
-    // Simple heuristic pricing based on number of unique ingredients
     if (region === 'India') { price = globalIngredientCount * 45; symbol = 'Est: ₹'; }
     else if (region === 'USA') { price = globalIngredientCount * 2.50; symbol = 'Est: $'; }
     else if (region === 'UK') { price = globalIngredientCount * 1.50; symbol = 'Est: £'; }
@@ -324,35 +349,43 @@ function calculatePrice() {
     document.getElementById('price-estimate').innerText = `${symbol}${price.toFixed(2)}`;
 }
 
-async function toggleWishlist(recipeObj) {
-    if (!currentUser) return;
-    const res = await fetch(`${API_BASE_URL}/wishlist/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, recipe: recipeObj })
-    });
-    if (res.ok) {
-        const data = await res.json();
-        refreshUI(data.profile);
-    }
-}
-
 function toggleWishlistIndex(index) {
     if(!currentUser) return;
     fetch(`${API_BASE_URL}/user/${currentUser}`)
         .then(r => r.json())
         .then(data => {
             const recipeToRemove = data.profile.wishlist[index];
-            toggleWishlist(recipeToRemove);
+            fetch(`${API_BASE_URL}/wishlist/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUser, recipe: recipeToRemove })
+            }).then(r => r.json()).then(d => refreshUI(d.profile));
         });
 }
 
-async function saveComboToWishlist(mealNamesArray) {
+// O(1) Instant Functions: Passing Full Data to Server
+async function logPlanCombo(comboIndex) {
     if (!currentUser) return;
+    const combo = currentPlanResults[comboIndex];
+    const res = await fetch(`${API_BASE_URL}/log-combo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, meals: combo.meals })
+    });
+    if (res.ok) {
+        const data = await res.json();
+        refreshUI(data.profile);
+        alert("Entire combo logged successfully to your Tracker!");
+    }
+}
+
+async function savePlanComboToWishlist(comboIndex) {
+    if (!currentUser) return;
+    const combo = currentPlanResults[comboIndex];
     const res = await fetch(`${API_BASE_URL}/wishlist/add-combo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, meals: mealNamesArray })
+        body: JSON.stringify({ username: currentUser, meals: combo.meals })
     });
     if (res.ok) {
         const data = await res.json();
@@ -361,21 +394,35 @@ async function saveComboToWishlist(mealNamesArray) {
     }
 }
 
-// Singular fetch for saving directly from the planner
-async function saveSingleRecipeByName(recipeName) {
+async function savePlanMealToWishlist(comboIndex, mealIndex) {
     if (!currentUser) return;
-    const res = await fetch(`${API_BASE_URL}/wishlist/add-single-by-name`, {
+    const meal = currentPlanResults[comboIndex].meals[mealIndex];
+    const res = await fetch(`${API_BASE_URL}/wishlist/add-combo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, name: recipeName })
+        body: JSON.stringify({ username: currentUser, meals: [meal] })
     });
     if (res.ok) {
         const data = await res.json();
         refreshUI(data.profile);
-        alert(data.message);
+        alert(`${meal.name} added to Groceries!`);
     }
 }
 
+async function saveSearchRecipeToWishlist(globalIndex) {
+    if (!currentUser) return;
+    const recipe = currentSearchResults[globalIndex];
+    const res = await fetch(`${API_BASE_URL}/wishlist/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, recipe: recipe })
+    });
+    if (res.ok) {
+        const data = await res.json();
+        refreshUI(data.profile);
+        alert(`${recipe.name} added to Groceries!`);
+    }
+}
 
 // ==========================================
 // 5. SEARCH, FILTERS & PAGINATION
@@ -412,7 +459,6 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         
         const data = await response.json();
         
-        // This catches our custom Python errors if a manual recipe was entered poorly
         if (!response.ok && data.error) {
             resultsContainer.innerHTML = `<p style='color: #ff4444;'>Backend Error: ${data.error}</p>`;
             return;
@@ -428,7 +474,7 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         renderSearchResults();
 
     } catch (error) {
-        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be waking up, try again in 10 seconds.</p>";
+        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be asleep, try again in 10 seconds.</p>";
     }
 });
 
@@ -444,11 +490,10 @@ function renderSearchResults() {
     resultsContainer.innerHTML = pageData.map((recipe, index) => {
         let ingArray = parseArrayRobust(recipe.ingredients);
         let stepArray = parseArrayRobust(recipe.steps);
-        
         let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
         let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
-
         const globalIndex = startIdx + index;
+        const safeName = recipe.name.replace(/'/g, "\\'");
 
         return `
         <div class="card" style="margin-top: 1rem;">
@@ -467,8 +512,8 @@ function renderSearchResults() {
             </details>
 
             <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                <button onclick="quickLog('${recipe.name.replace(/'/g, "\\'")}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
-                <button onclick="saveRecipeFromSearch(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
+                <button onclick="logSingleMeal('${safeName}', ${recipe.calories}, ${recipe.protein})" style="font-size: 0.8rem; padding: 0.5rem 1rem;">+ Add to Tracker</button>
+                <button onclick="saveSearchRecipeToWishlist(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333; font-size: 0.8rem; padding: 0.5rem 1rem;">❤️ Save to Groceries</button>
             </div>
         </div>
         `;
@@ -490,26 +535,6 @@ function changePage(direction) {
     if (currentPage < 1) currentPage = 1;
     if (currentPage > totalPages) currentPage = totalPages;
     renderSearchResults();
-}
-
-function saveRecipeFromSearch(globalIndex) {
-    const recipe = currentSearchResults[globalIndex];
-    toggleWishlist(recipe);
-    alert(`${recipe.name} added to Groceries!`);
-}
-
-async function quickLog(name, calories, protein) {
-    if (!currentUser) return;
-    const res = await fetch(`${API_BASE_URL}/log-food`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, name: name, calories: calories, protein: protein })
-    });
-    if (res.ok) {
-        const data = await res.json();
-        refreshUI(data.profile);
-        alert(`${name} logged for today!`);
-    }
 }
 
 // ==========================================
@@ -543,17 +568,15 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
             return;
         }
 
-        resultsContainer.innerHTML = data.results.map((combo, index) => {
-            let mealNamesArray = [];
-            
+        // Store the output in memory so button clicks are O(1) instant lookup
+        currentPlanResults = data.results;
+
+        resultsContainer.innerHTML = currentPlanResults.map((combo, comboIndex) => {
             let mealsHtml = combo.meals.map((mealObj, mIdx) => {
-                mealNamesArray.push(mealObj.name);
-                
                 let ingArray = parseArrayRobust(mealObj.ingredients);
                 let stepArray = parseArrayRobust(mealObj.steps);
                 let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
                 let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
-                
                 const safeName = mealObj.name.replace(/'/g, "\\'");
 
                 return `
@@ -567,28 +590,25 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                             <strong>Instructions:</strong>
                             <ol style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${stepHtml}</ol>
                             
-                            <!-- Singular Add Buttons -->
                             <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                                <button onclick="quickLog('${safeName}', ${mealObj.calories}, ${mealObj.protein})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Log Meal</button>
-                                <button onclick="saveSingleRecipeByName('${safeName}')" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                                <button onclick="logSingleMeal('${safeName}', ${mealObj.calories}, ${mealObj.protein})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Log Meal</button>
+                                <button onclick="savePlanMealToWishlist(${comboIndex}, ${mIdx})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
                             </div>
                         </div>
                     </details>
                 </div>`;
             }).join('');
 
-            const arrayStringForJS = JSON.stringify(mealNamesArray).replace(/'/g, "\\'");
-
             return `
             <div class="card" style="margin-top: 1rem;">
-                <h3 style="margin-top: 0; color: var(--primary-color);">Option ${index + 1}</h3>
+                <h3 style="margin-top: 0; color: var(--primary-color);">Option ${comboIndex + 1}</h3>
                 <p style="margin-bottom: 1rem;"><strong>${combo['Total Calories']} kcal</strong> | <strong>${combo['Total Protein']}g Protein</strong></p>
                 
                 ${mealsHtml}
 
                 <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button onclick='logCombo(${arrayStringForJS})' style="flex: 1;">+ Log Combo to Tracker</button>
-                    <button onclick='saveComboToWishlist(${arrayStringForJS})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
+                    <button onclick='logPlanCombo(${comboIndex})' style="flex: 1;">+ Log Combo to Tracker</button>
+                    <button onclick='savePlanComboToWishlist(${comboIndex})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
                 </div>
             </div>`;
         }).join('');

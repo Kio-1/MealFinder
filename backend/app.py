@@ -9,18 +9,11 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# ==========================================
-# SUPABASE DATABASE INITIALIZATION
-# ==========================================
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "YOUR_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "YOUR_SUPABASE_SERVICE_ROLE_KEY")
-
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 print("Connected to Supabase. Fully Cloud-Native Backend Ready!")
 
-# ==========================================
-# HELPER FUNCTIONS
-# ==========================================
 def load_user(username):
     res = supabase.table('users').select('profile_data').eq('username', username).execute()
     if res.data:
@@ -48,14 +41,30 @@ def safe_parse_list(val):
         return [cleaned.strip()] if cleaned.strip() else []
     return []
 
-# ==========================================
-# AUTHENTICATION ENDPOINTS
-# ==========================================
+def calculate_macros(weight, height, age, sex, activity, goal_weight):
+    # Standard Mifflin-St Jeor Equation
+    if sex == "Male":
+        bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5
+    else:
+        bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161
+        
+    multipliers = {
+        "Sedentary": 1.2,
+        "Light": 1.375,
+        "Moderate": 1.55,
+        "Active": 1.725,
+        "Very Active": 1.9
+    }
+    maintenance = bmr * multipliers.get(activity, 1.55)
+    
+    target_cals = int(maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance)
+    target_pro = int(weight * 2)
+    return target_cals, target_pro
+
 @app.route('/api/status', methods=['GET'])
 def status():
     return jsonify({"status": "MealFinder Backend Online"})
 
-# THE FIX: Restored endpoint for Grocery Removal
 @app.route('/api/user/<username>', methods=['GET'])
 def get_user_profile(username):
     profile = load_user(username)
@@ -72,10 +81,8 @@ def login():
     res = supabase.table('users').select('password, profile_data').eq('username', username).execute()
     if not res.data:
         return jsonify({"error": "User not found."}), 404
-        
     if res.data[0]['password'] != password:
         return jsonify({"error": "Incorrect password."}), 401
-        
     return jsonify({"profile": res.data[0]['profile_data']})
 
 @app.route('/api/register', methods=['POST'])
@@ -88,17 +95,13 @@ def register():
     height = float(data.get('height', 181))
     weight = float(data.get('weight', 88))
     goal_weight = float(data.get('goal_weight', 80))
-    activity = data.get('activity', 'Medium')
+    activity = data.get('activity', 'Moderate')
     
     res = supabase.table('users').select('username').eq('username', username).execute()
     if res.data:
         return jsonify({"error": "Username exists!"}), 400
 
-    bmr = (10 * weight) + (6.25 * height) - (5 * age) + (5 if sex == "Male" else -161)
-    maintenance = bmr * 1.55
-    target_cals = int(maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance)
-    target_pro = int(weight * 2)
-    
+    target_cals, target_pro = calculate_macros(weight, height, age, sex, activity, goal_weight)
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     profile_data = {
@@ -111,41 +114,37 @@ def register():
     }
     
     try:
-        supabase.table('users').insert({
-            'username': username,
-            'password': password,
-            'profile_data': profile_data
-        }).execute()
+        supabase.table('users').insert({'username': username, 'password': password, 'profile_data': profile_data}).execute()
         return jsonify({"message": "Profile created!"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ==========================================
-# USER PROFILE & TRACKER ENDPOINTS
-# ==========================================
 @app.route('/api/update-profile', methods=['POST'])
 def update_profile():
     data = request.json or {}
     username = data.get('username')
-    weight = float(data.get('weight', 0))
-    height = float(data.get('height', 181))
-    goal_weight = float(data.get('goal_weight', 0))
     
     profile = load_user(username)
     if not profile:
         return jsonify({"error": "User not found"}), 404
 
-    profile['stats']['height'] = height
-    bmr = (10 * weight) + (6.25 * height) - (5 * profile['stats'].get('age', 19)) + (5 if profile['stats'].get('sex') == "Male" else -161)
-    maintenance = bmr * 1.55
-    target_cals = int(maintenance - 500 if goal_weight < weight else maintenance + 500 if goal_weight > weight else maintenance)
+    # Update all fields provided
+    stats = profile.get('stats', {})
+    stats['weight'] = float(data.get('weight', stats.get('weight', 0)))
+    stats['height'] = float(data.get('height', stats.get('height', 181)))
+    stats['age'] = int(data.get('age', stats.get('age', 19)))
+    stats['sex'] = data.get('sex', stats.get('sex', 'Male'))
+    stats['activity'] = data.get('activity', stats.get('activity', 'Moderate'))
+    goal_weight = float(data.get('goal_weight', profile.get('goals', {}).get('goal_weight', 0)))
 
-    profile['stats']['weight'] = weight
+    target_cals, target_pro = calculate_macros(stats['weight'], stats['height'], stats['age'], stats['sex'], stats['activity'], goal_weight)
+
+    profile['stats'] = stats
     profile['goals']['goal_weight'] = goal_weight
-    profile['macros'] = {"target_cals": target_cals, "target_pro": int(weight * 2)}
+    profile['macros'] = {"target_cals": target_cals, "target_pro": target_pro}
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    profile['weight_history'][now_str] = weight
+    profile['weight_history'][now_str] = stats['weight']
 
     save_user(username, profile)
     return jsonify({"message": "Profile updated!", "profile": profile})
@@ -175,7 +174,7 @@ def log_food():
 def log_combo():
     data = request.json or {}
     username = data.get('username')
-    meal_names = data.get('meals', [])
+    meals = data.get('meals', [])
     today = datetime.now().strftime("%Y-%m-%d")
     
     profile = load_user(username)
@@ -185,14 +184,13 @@ def log_combo():
     if today not in profile['history']:
         profile['history'][today] = []
 
-    if meal_names:
-        response = supabase.table('recipes').select('name, calories, protein').in_('name', meal_names).execute()
-        for recipe in response.data:
-            profile['history'][today].append({
-                "name": recipe['name'],
-                "calories": int(recipe.get('calories', 0) or 0),
-                "protein": int(recipe.get('protein', 0) or 0)
-            })
+    # Instantly write the provided meal objects directly to history without querying DB
+    for meal in meals:
+        profile['history'][today].append({
+            "name": meal.get('name', 'Unknown Meal'),
+            "calories": int(meal.get('calories', 0)),
+            "protein": int(meal.get('protein', 0))
+        })
             
     save_user(username, profile)
     return jsonify({"message": "Combo logged successfully!", "profile": profile})
@@ -212,12 +210,8 @@ def remove_food():
             return jsonify({"message": "Food removed!", "profile": profile})
         except (IndexError, TypeError):
             return jsonify({"error": "Invalid meal index"}), 400
-
     return jsonify({"error": "Record not found"}), 404
 
-# ==========================================
-# WISHLIST & GROCERY ENDPOINTS
-# ==========================================
 @app.route('/api/wishlist/toggle', methods=['POST'])
 def toggle_wishlist():
     data = request.json or {}
@@ -239,43 +233,11 @@ def toggle_wishlist():
     save_user(username, profile)
     return jsonify({"message": "Wishlist updated!", "profile": profile})
 
-@app.route('/api/wishlist/add-single-by-name', methods=['POST'])
-def add_single_by_name():
-    data = request.json or {}
-    username = data.get('username')
-    meal_name = data.get('name')
-    
-    profile = load_user(username)
-    if not profile:
-        return jsonify({"error": "User not found"}), 404
-
-    wishlist = profile.get('wishlist', [])
-    if any(r.get('name') == meal_name for r in wishlist):
-        return jsonify({"message": "Already in Groceries!", "profile": profile})
-
-    response = supabase.table('recipes').select('*').eq('name', meal_name).execute()
-    if response.data:
-        row = response.data[0]
-        recipe_obj = {
-            "name": str(row.get("name", "")),
-            "calories": int(row.get("calories", 0) or 0),
-            "protein": int(row.get("protein", 0) or 0),
-            "minutes": int(row.get("minutes", 0) or 0),
-            "description": str(row.get("description", "")),
-            "ingredients": safe_parse_list(row.get("ingredients", [])),
-            "steps": safe_parse_list(row.get("steps", []))
-        }
-        profile['wishlist'].append(recipe_obj)
-        save_user(username, profile)
-        return jsonify({"message": f"{meal_name} added to Groceries!", "profile": profile})
-        
-    return jsonify({"error": "Recipe not found in DB"}), 404
-
 @app.route('/api/wishlist/add-combo', methods=['POST'])
 def add_combo_wishlist():
     data = request.json or {}
     username = data.get('username')
-    meal_names = data.get('meals', [])
+    meals = data.get('meals', [])
     
     profile = load_user(username)
     if not profile:
@@ -284,28 +246,15 @@ def add_combo_wishlist():
     wishlist = profile.get('wishlist', [])
     added_count = 0
     
-    if meal_names:
-        response = supabase.table('recipes').select('*').in_('name', meal_names).execute()
-        for row in response.data:
-            if not any(r.get('name') == row.get('name') for r in wishlist):
-                recipe_obj = {
-                    "name": str(row.get("name", "")),
-                    "calories": int(row.get("calories", 0) or 0),
-                    "protein": int(row.get("protein", 0) or 0),
-                    "minutes": int(row.get("minutes", 0) or 0),
-                    "description": str(row.get("description", "")),
-                    "ingredients": safe_parse_list(row.get("ingredients", [])),
-                    "steps": safe_parse_list(row.get("steps", []))
-                }
-                profile['wishlist'].append(recipe_obj)
-                added_count += 1
+    # Instantly add full meal objects to wishlist without database queries
+    for meal in meals:
+        if not any(r.get('name') == meal.get('name') for r in wishlist):
+            profile['wishlist'].append(meal)
+            added_count += 1
                 
     save_user(username, profile)
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
-# ==========================================
-# SEARCH & PLANNER ENGINE
-# ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
     data = request.json or {}
@@ -313,47 +262,32 @@ def search():
     tags_filter = data.get('tags', [])
     top_n = 100 
 
-    results = []
     try:
-        # THE FIX: Removed .ilike() exact string matching to prevent 57014 Server Timeouts
-        search_terms = f"{query} {' '.join(tags_filter)}".strip()
-        if search_terms:
-            formatted_query = ' & '.join(search_terms.replace("'", "").split())
-            if formatted_query:
-                try:
-                    fts_res = supabase.table('recipes') \
-                        .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
-                        .text_search('search_vector', formatted_query) \
-                        .limit(top_n) \
-                        .execute()
-                    results.extend(fts_res.data)
-                except Exception:
-                    pass
+        # Start base query
+        req = supabase.table('recipes').select('name, calories, protein, minutes, description, ingredients, steps, tags')
+        
+        # Apply BM25 Text Search natively if query exists
+        if query:
+            req = req.text_search('search_vector', query, options={'type': 'websearch'})
+            
+        # Apply Array Containment natively if tags exist
+        if tags_filter:
+            req = req.contains('tags', tags_filter)
+            
+        res = req.limit(top_n).execute()
+        results = res.data
 
-        # Tag Fallback
-        if not results and tags_filter:
-            tag_res = supabase.table('recipes') \
-                .select('name, calories, protein, minutes, description, ingredients, steps, tags') \
-                .contains('tags', tags_filter) \
-                .limit(top_n) \
-                .execute()
-            results.extend(tag_res.data)
-
-        seen = set()
-        deduped_results = []
+        # Parse arrays safely
         for r in results:
-            if r['name'] not in seen:
-                seen.add(r['name'])
-                r['ingredients'] = safe_parse_list(r.get('ingredients', []))
-                r['steps'] = safe_parse_list(r.get('steps', []))
-                r['calories'] = int(r.get('calories', 0) or 0)
-                r['protein'] = int(r.get('protein', 0) or 0)
-                r['minutes'] = int(r.get('minutes', 0) or 0)
-                r['description'] = str(r.get('description', ''))
-                deduped_results.append(r)
+            r['ingredients'] = safe_parse_list(r.get('ingredients', []))
+            r['steps'] = safe_parse_list(r.get('steps', []))
+            r['calories'] = int(r.get('calories', 0) or 0)
+            r['protein'] = int(r.get('protein', 0) or 0)
+            r['minutes'] = int(r.get('minutes', 0) or 0)
+            r['description'] = str(r.get('description', ''))
 
-        deduped_results.sort(key=lambda x: x['name'])
-        return jsonify({"results": deduped_results[:top_n]})
+        results.sort(key=lambda x: x['name'])
+        return jsonify({"results": results})
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -371,7 +305,7 @@ def plan():
     
     try:
         response = supabase.table('recipes') \
-            .select('name, calories, protein, description, ingredients, steps, tags') \
+            .select('name, calories, protein, description, minutes, ingredients, steps, tags') \
             .in_('id', random_ids) \
             .execute()
         candidate_pool = response.data
@@ -411,6 +345,7 @@ def plan():
                     "name": meal.get('name'),
                     "calories": int(meal.get('calories', 0) or 0),
                     "protein": int(meal.get('protein', 0) or 0),
+                    "minutes": int(meal.get('minutes', 0) or 0),
                     "description": str(meal.get('description', '')),
                     "ingredients": safe_parse_list(meal.get('ingredients', [])),
                     "steps": safe_parse_list(meal.get('steps', []))
@@ -422,7 +357,6 @@ def plan():
 
     valid_combos.sort(key=lambda x: x['_error'])
     top_combos = valid_combos[:5]
-
     for combo in top_combos:
         combo.pop('_error', None)
 
