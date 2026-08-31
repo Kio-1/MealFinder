@@ -12,13 +12,15 @@
         <h1 style="text-align: center; color: var(--primary-color);">MealFinder 🍽️</h1>
         <div class="card">
             <h2>Log In</h2>
-            <input type="text" id="login-username" placeholder="Enter your username...">
-            <button id="login-btn" style="width: 100%; margin-top: 1rem;">Enter</button>
+            <input type="text" id="login-username" placeholder="Username" style="margin-bottom: 0.5rem;">
+            <input type="password" id="login-pass" placeholder="Password">
+            <button id="login-btn" style="width: 100%; margin-top: 1rem;">Secure Login</button>
             <p id="auth-error" style="color: #ff4444; font-size: 0.9rem;"></p>
         </div>
         <div class="card">
             <h2>New Profile</h2>
             <input type="text" id="reg-username" placeholder="Username" style="margin-bottom: 0.5rem;">
+            <input type="password" id="reg-pass" placeholder="Password" style="margin-bottom: 0.5rem;">
             <div class="search-box" style="margin-bottom: 0.5rem;">
                 <input type="number" id="reg-weight" placeholder="Weight (kg)">
                 <input type="number" id="reg-goal" placeholder="Goal (kg)">
@@ -64,19 +66,18 @@
                     <button id="search-btn">Search</button>
                 </div>
                 <div id="tag-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-                    <button class="tag-btn" onclick="toggleTag(this, 'high-protein')">high-protein</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'low-carb')">low-carb</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'vegetarian')">vegetarian</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'vegan')">vegan</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'chicken')">chicken</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'beef')">beef</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'pork')">pork</button>
-                    <button class="tag-btn" onclick="toggleTag(this, 'dessert')">dessert</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'high-protein')">high-protein</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'low-carb')">low-carb</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'vegetarian')">vegetarian</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'vegan')">vegan</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'chicken')">chicken</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'beef')">beef</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'pork')">pork</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'search', 'dessert')">dessert</button>
                 </div>
                 
                 <div id="search-results" class="results-grid"></div>
                 
-                <!-- Pagination Controls -->
                 <div id="pagination-controls" class="hidden" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem;">
                     <button id="prev-btn" onclick="changePage(-1)" style="padding: 0.5rem 1rem; background: #333; color: white;">&larr; Prev</button>
                     <span id="page-indicator" style="font-weight: bold; color: var(--primary-color);">Tab 1 of 5</span>
@@ -86,7 +87,7 @@
 
             <section id="plan" class="tab-content hidden">
                 <h2>Auto-Generate Meal Combos</h2>
-                <div class="card planner-box">
+                <div class="card planner-box" style="margin-bottom: 0.5rem;">
                     <div class="input-group">
                         <label>Calories</label>
                         <input type="number" id="plan-cal">
@@ -101,14 +102,34 @@
                     </div>
                     <button id="plan-btn">Generate Plan</button>
                 </div>
+                
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <span style="color: var(--text-muted); font-size: 0.9rem; align-self: center;">Requirements:</span>
+                    <button class="tag-btn" onclick="toggleTag(this, 'plan', 'vegetarian')">vegetarian</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'plan', 'vegan')">vegan</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'plan', 'chicken')">chicken</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'plan', 'beef')">beef</button>
+                    <button class="tag-btn" onclick="toggleTag(this, 'plan', 'pork')">pork</button>
+                </div>
+
                 <div id="plan-results"></div>
             </section>
             
             <section id="wishlist" class="tab-content hidden">
                 <h2>Grocery List Compiler 🛒</h2>
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                    <select id="currency-selector" onchange="calculatePrice()" style="background: #242424; color: white; border: 1px solid #333; padding: 0.5rem; border-radius: 4px;">
+                        <option value="India">India (₹)</option>
+                        <option value="USA">USA ($)</option>
+                        <option value="UK">UK (£)</option>
+                        <option value="Europe">Europe (€)</option>
+                    </select>
+                </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 2rem;">
                     <div style="flex: 1; min-width: 300px;">
-                        <h3 style="color: var(--primary-color);">Aggregated Grocery List</h3>
+                        <h3 style="color: var(--primary-color); display: flex; justify-content: space-between;">
+                            Aggregated List <span id="price-estimate" style="color: white; font-size: 1rem;"></span>
+                        </h3>
                         <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">Items mapped to the exact recipes requiring them.</p>
                         <div class="card" id="grocery-list-render"></div>
                     </div>

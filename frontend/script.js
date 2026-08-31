@@ -1,29 +1,37 @@
 const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api"; 
 let currentUser = null;
-let activeTags = [];
+let searchTags = [];
+let planTags = [];
 let weightChartInstance = null; 
 let currentSearchResults = []; 
 let currentPage = 1;
 const RESULTS_PER_PAGE = 20;
+let globalIngredientCount = 0;
 
 // ==========================================
 // 1. AUTHENTICATION & ENTER KEY LOGIC
 // ==========================================
-document.getElementById('login-username').addEventListener('keypress', function (e) {
+document.getElementById('login-pass').addEventListener('keypress', function (e) {
     if (e.key === 'Enter') document.getElementById('login-btn').click();
 });
 
 document.getElementById('login-btn').addEventListener('click', async () => {
     const username = document.getElementById('login-username').value;
-    if (!username) return;
+    const password = document.getElementById('login-pass').value;
+    if (!username || !password) return;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/user/${username}`);
+        const response = await fetch(`${API_BASE_URL}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
         if (response.ok) {
-            const data = await response.json();
             loginSuccess(username, data.profile);
         } else {
-            document.getElementById('auth-error').innerText = "User not found. Create a profile below.";
+            document.getElementById('auth-error').innerText = data.error || "Login failed.";
         }
     } catch (err) {
         document.getElementById('auth-error').innerText = "Error connecting to server.";
@@ -32,19 +40,24 @@ document.getElementById('login-btn').addEventListener('click', async () => {
 
 document.getElementById('reg-btn').addEventListener('click', async () => {
     const username = document.getElementById('reg-username').value;
+    const password = document.getElementById('reg-pass').value;
     const weight = document.getElementById('reg-weight').value;
     const goal = document.getElementById('reg-goal').value;
-    if (!username || !weight || !goal) return;
+    if (!username || !password || !weight || !goal) return;
 
     const response = await fetch(`${API_BASE_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, weight, goal_weight: goal, height: 181 })
+        body: JSON.stringify({ username, password, weight, goal_weight: goal, height: 181 })
     });
     
+    const data = await response.json();
     if (response.ok) {
-        alert("Profile Created! You can now log in above.");
+        alert("Secure Profile Created! You can now log in above.");
         document.getElementById('reg-username').value = '';
+        document.getElementById('reg-pass').value = '';
+    } else {
+        alert(data.error || "Registration failed");
     }
 });
 
@@ -65,6 +78,7 @@ function logout() {
     document.getElementById('main-app').classList.add('hidden');
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('login-username').value = '';
+    document.getElementById('login-pass').value = '';
 }
 
 // ==========================================
@@ -109,7 +123,6 @@ function refreshUI(profileData) {
     document.getElementById('update-height').value = profileData.stats.height || 181;
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
     
-    // Calculate and display BMI
     const hMeters = (profileData.stats.height || 181) / 100;
     const bmi = (profileData.stats.weight / (hMeters * hMeters)).toFixed(1);
     document.getElementById('bmi-display').innerText = `Current BMI: ${bmi}`;
@@ -219,7 +232,7 @@ function renderGraph(weightHistory) {
 }
 
 // ==========================================
-// 4. GROCERIES & WISHLIST LOGIC
+// 4. GROCERIES, WISHLIST & PRICING
 // ==========================================
 function parseArrayRobust(arr) {
     if (Array.isArray(arr)) return arr;
@@ -236,6 +249,8 @@ function renderWishlistAndGroceries(wishlist) {
     if (wishlist.length === 0) {
         wishlistContainer.innerHTML = "<p>No recipes saved yet.</p>";
         groceryContainer.innerHTML = "<p>Add recipes to your wishlist to generate a grocery list.</p>";
+        document.getElementById('price-estimate').innerText = "";
+        globalIngredientCount = 0;
         return;
     }
 
@@ -279,6 +294,8 @@ function renderWishlistAndGroceries(wishlist) {
     });
 
     const sortedIngredients = Object.keys(groceryMap).sort();
+    globalIngredientCount = sortedIngredients.length;
+    
     groceryContainer.innerHTML = `
         <ul style="list-style-type: none; padding: 0; margin: 0;">
             ${sortedIngredients.map(ing => `
@@ -289,6 +306,22 @@ function renderWishlistAndGroceries(wishlist) {
             `).join('')}
         </ul>
     `;
+    calculatePrice();
+}
+
+function calculatePrice() {
+    if (globalIngredientCount === 0) return;
+    const region = document.getElementById('currency-selector').value;
+    let price = 0;
+    let symbol = '';
+    
+    // Simple heuristic pricing based on number of unique ingredients
+    if (region === 'India') { price = globalIngredientCount * 45; symbol = 'Est: ₹'; }
+    else if (region === 'USA') { price = globalIngredientCount * 2.50; symbol = 'Est: $'; }
+    else if (region === 'UK') { price = globalIngredientCount * 1.50; symbol = 'Est: £'; }
+    else if (region === 'Europe') { price = globalIngredientCount * 2.00; symbol = 'Est: €'; }
+    
+    document.getElementById('price-estimate').innerText = `${symbol}${price.toFixed(2)}`;
 }
 
 async function toggleWishlist(recipeObj) {
@@ -328,16 +361,33 @@ async function saveComboToWishlist(mealNamesArray) {
     }
 }
 
+// Singular fetch for saving directly from the planner
+async function saveSingleRecipeByName(recipeName) {
+    if (!currentUser) return;
+    const res = await fetch(`${API_BASE_URL}/wishlist/add-single-by-name`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, name: recipeName })
+    });
+    if (res.ok) {
+        const data = await res.json();
+        refreshUI(data.profile);
+        alert(data.message);
+    }
+}
+
 
 // ==========================================
 // 5. SEARCH, FILTERS & PAGINATION
 // ==========================================
-function toggleTag(btnElement, tagString) {
+function toggleTag(btnElement, context, tagString) {
     btnElement.classList.toggle('selected');
-    if (activeTags.includes(tagString)) {
-        activeTags = activeTags.filter(t => t !== tagString);
+    let targetArray = context === 'search' ? searchTags : planTags;
+    
+    if (targetArray.includes(tagString)) {
+        targetArray.splice(targetArray.indexOf(tagString), 1);
     } else {
-        activeTags.push(tagString);
+        targetArray.push(tagString);
     }
 }
 
@@ -357,10 +407,17 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         const response = await fetch(`${API_BASE_URL}/search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: query, tags: activeTags })
+            body: JSON.stringify({ query: query, tags: searchTags })
         });
         
         const data = await response.json();
+        
+        // This catches our custom Python errors if a manual recipe was entered poorly
+        if (!response.ok && data.error) {
+            resultsContainer.innerHTML = `<p style='color: #ff4444;'>Backend Error: ${data.error}</p>`;
+            return;
+        }
+        
         if (!data.results || data.results.length === 0) {
             resultsContainer.innerHTML = "<p>No matches found.</p>";
             return;
@@ -371,7 +428,7 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         renderSearchResults();
 
     } catch (error) {
-        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server.</p>";
+        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be waking up, try again in 10 seconds.</p>";
     }
 });
 
@@ -391,7 +448,6 @@ function renderSearchResults() {
         let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
         let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
 
-        // Calculate global index for saving to wishlist correctly
         const globalIndex = startIdx + index;
 
         return `
@@ -418,7 +474,6 @@ function renderSearchResults() {
         `;
     }).join('');
 
-    // Pagination Display
     if (totalPages > 1) {
         paginationContainer.classList.remove('hidden');
         document.getElementById('page-indicator').innerText = `Tab ${currentPage} of ${totalPages}`;
@@ -479,7 +534,7 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
         const response = await fetch(`${API_BASE_URL}/plan`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ calories, protein, meals })
+            body: JSON.stringify({ calories, protein, meals, tags: planTags })
         });
         const data = await response.json();
         
@@ -491,7 +546,6 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
         resultsContainer.innerHTML = data.results.map((combo, index) => {
             let mealNamesArray = [];
             
-            // Build the expandable details for each meal in this combo
             let mealsHtml = combo.meals.map((mealObj, mIdx) => {
                 mealNamesArray.push(mealObj.name);
                 
@@ -500,15 +554,24 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                 let ingHtml = ingArray.map(i => `<li>${i}</li>`).join('');
                 let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
                 
+                const safeName = mealObj.name.replace(/'/g, "\\'");
+
                 return `
                 <div style="margin-bottom: 0.8rem; background: #242424; padding: 0.5rem; border-radius: 4px;">
                     <details style="cursor: pointer;">
                         <summary style="font-weight: bold; outline: none; color: white;">Meal ${mIdx + 1}: <span style="color: var(--primary-color)">${mealObj.name}</span></summary>
                         <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;"><em>${mealObj.description}</em></p>
                             <strong>Ingredients:</strong>
                             <ul style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${ingHtml}</ul>
                             <strong>Instructions:</strong>
                             <ol style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${stepHtml}</ol>
+                            
+                            <!-- Singular Add Buttons -->
+                            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                                <button onclick="quickLog('${safeName}', ${mealObj.calories}, ${mealObj.protein})" style="font-size: 0.75rem; padding: 0.3rem 0.6rem;">+ Log Meal</button>
+                                <button onclick="saveSingleRecipeByName('${safeName}')" style="font-size: 0.75rem; padding: 0.3rem 0.6rem; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                            </div>
                         </div>
                     </details>
                 </div>`;
@@ -524,12 +587,12 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                 ${mealsHtml}
 
                 <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
-                    <button onclick='logCombo(${arrayStringForJS})' style="flex: 1;">+ Log to Tracker</button>
-                    <button onclick='saveComboToWishlist(${arrayStringForJS})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                    <button onclick='logCombo(${arrayStringForJS})' style="flex: 1;">+ Log Combo to Tracker</button>
+                    <button onclick='saveComboToWishlist(${arrayStringForJS})' style="flex: 1; background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
                 </div>
             </div>`;
         }).join('');
     } catch (error) {
-        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server.</p>";
+        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be asleep, try again in a few seconds.</p>";
     }
 });
