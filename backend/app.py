@@ -226,8 +226,8 @@ def remove_food():
 # ==========================================
 # WISHLIST / GROCERIES ENDPOINTS
 # ==========================================
-@app.route('/api/wishlist/toggle', methods=['POST'])
-def toggle_wishlist():
+@app.route('/api/wishlist/add', methods=['POST'])
+def add_wishlist():
     data = request.json or {}
     username = data.get('username')
     recipe = data.get('recipe', {})
@@ -239,13 +239,32 @@ def toggle_wishlist():
     wishlist = profile.get('wishlist', [])
     exists = any(r.get('name') == recipe.get('name') for r in wishlist)
     
-    if exists:
-        profile['wishlist'] = [r for r in wishlist if r.get('name') != recipe.get('name')]
-    else:
+    if not exists:
         profile['wishlist'].append(recipe)
+        save_user(username, profile)
+        return jsonify({"message": f"{recipe.get('name')} added to Groceries!", "profile": profile})
+    else:
+        return jsonify({"message": "Already in Groceries!", "profile": profile})
+
+@app.route('/api/wishlist/remove', methods=['POST'])
+def remove_wishlist():
+    data = request.json or {}
+    username = data.get('username')
+    index = data.get('index')
+    
+    profile = load_user(username)
+    if not profile:
+        return jsonify({"error": "User not found"}), 404
         
-    save_user(username, profile)
-    return jsonify({"message": "Wishlist updated!", "profile": profile})
+    if 'wishlist' in profile:
+        try:
+            profile['wishlist'].pop(index)
+            save_user(username, profile)
+            return jsonify({"message": "Removed from Groceries!", "profile": profile})
+        except IndexError:
+            pass
+            
+    return jsonify({"error": "Invalid index", "profile": profile}), 400
 
 @app.route('/api/wishlist/add-combo', methods=['POST'])
 def add_combo_wishlist():
@@ -284,11 +303,8 @@ def search():
         ).limit(top_n)
         
         if query:
-            # re.findall extracts strictly alphanumeric words, stripping all punctuation/quotes
             safe_words = re.findall(r'\w+', query)
-            # Joins words with the PostgreSQL 'AND' operator (&)
             formatted_query = ' & '.join(safe_words)
-            
             if formatted_query:
                 req = req.text_search('search_vector', formatted_query)
             

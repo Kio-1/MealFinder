@@ -130,7 +130,6 @@ function refreshUI(profileData) {
     `;
     document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p>No meals logged today.</p>";
 
-    // Populate Profile Tab
     document.getElementById('update-age').value = profileData.stats.age || 19;
     document.getElementById('update-gender').value = profileData.stats.sex || 'Male';
     document.getElementById('update-weight').value = profileData.stats.weight;
@@ -138,7 +137,6 @@ function refreshUI(profileData) {
     document.getElementById('update-activity').value = profileData.stats.activity || 'Moderate';
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
     
-    // BMI Logic
     const hMeters = (profileData.stats.height || 181) / 100;
     const bmi = (profileData.stats.weight / (hMeters * hMeters)).toFixed(1);
     let category = "Normal";
@@ -291,7 +289,7 @@ function renderWishlistAndGroceries(wishlist) {
         <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 3px solid var(--primary-color);">
             <div style="display: flex; justify-content: space-between; align-items: start;">
                 <h4 style="margin: 0 0 0.5rem 0;">${recipe.name}</h4>
-                <button onclick="toggleWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.2rem 0.5rem;">Remove</button>
+                <button onclick="removeWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.2rem 0.5rem;">Remove</button>
             </div>
             
             <details style="margin-top: 0.5rem; cursor: pointer;">
@@ -349,18 +347,15 @@ function calculatePrice() {
     document.getElementById('price-estimate').innerText = `${symbol}${price.toFixed(2)}`;
 }
 
-function toggleWishlistIndex(index) {
+function removeWishlistIndex(index) {
     if(!currentUser) return;
-    fetch(`${API_BASE_URL}/user/${currentUser}`)
-        .then(r => r.json())
-        .then(data => {
-            const recipeToRemove = data.profile.wishlist[index];
-            fetch(`${API_BASE_URL}/wishlist/toggle`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: currentUser, recipe: recipeToRemove })
-            }).then(r => r.json()).then(d => refreshUI(d.profile));
-        });
+    fetch(`${API_BASE_URL}/wishlist/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: currentUser, index: index })
+    }).then(r => r.json()).then(data => {
+        if(data.profile) refreshUI(data.profile);
+    });
 }
 
 // O(1) Instant Functions: Passing Full Data to Server
@@ -412,7 +407,7 @@ async function savePlanMealToWishlist(comboIndex, mealIndex) {
 async function saveSearchRecipeToWishlist(globalIndex) {
     if (!currentUser) return;
     const recipe = currentSearchResults[globalIndex];
-    const res = await fetch(`${API_BASE_URL}/wishlist/toggle`, {
+    const res = await fetch(`${API_BASE_URL}/wishlist/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: currentUser, recipe: recipe })
@@ -420,7 +415,7 @@ async function saveSearchRecipeToWishlist(globalIndex) {
     if (res.ok) {
         const data = await res.json();
         refreshUI(data.profile);
-        alert(`${recipe.name} added to Groceries!`);
+        alert(data.message);
     }
 }
 
@@ -568,7 +563,6 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
             return;
         }
 
-        // Store the output in memory so button clicks are O(1) instant lookup
         currentPlanResults = data.results;
 
         resultsContainer.innerHTML = currentPlanResults.map((combo, comboIndex) => {
