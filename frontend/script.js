@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://mealfinder-api.onrender.com/api"; 
+const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api"; 
 let currentUser = null;
 let searchTags = [];
 let planTags = [];
