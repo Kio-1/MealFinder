@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,74 +8,121 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <div id="auth-screen" class="container" style="max-width: 450px; margin-top: 5vh;">
-        <h1 style="text-align: center; color: var(--primary-color);">MealFinder 🍽️</h1>
-        
-        <div class="card">
-            <h2>Log In</h2>
-            <input type="text" id="login-username" placeholder="Username" style="margin-bottom: 0.5rem;">
-            <input type="password" id="login-pass" placeholder="Password">
-            <button id="login-btn" style="width: 100%; margin-top: 1rem;">Secure Login</button>
-            <p id="auth-error" style="color: #ff4444; font-size: 0.9rem; text-align: center;"></p>
-        </div>
-        
-        <div class="card">
-            <h2>New Profile</h2>
-            <div class="search-box" style="margin-bottom: 0.5rem;">
-                <input type="text" id="reg-username" placeholder="Username">
-                <input type="password" id="reg-pass" placeholder="Password">
+
+    <!-- ========================================== -->
+    <!-- LANDING PAGE & AUTHENTICATION -->
+    <!-- ========================================== -->
+    <div id="landing-page">
+        <nav class="navbar landing-nav">
+            <div class="nav-brand">MealFinder 🍽️</div>
+            <div class="nav-links">
+                <button class="btn-outline" onclick="showAuth('login')">Log In</button>
+                <button onclick="showAuth('register')">Sign Up</button>
             </div>
-            
-            <div class="search-box" style="margin-bottom: 0.5rem;">
-                <input type="number" id="reg-age" placeholder="Age (yrs)">
-                <select id="reg-gender">
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                </select>
+        </nav>
+
+        <header class="hero">
+            <h1>Your intelligent meal planner.</h1>
+            <p>Generate precise combinatorial meal plans tailored to your macros, search 195,000+ recipes instantly, and seamlessly compile your grocery lists.</p>
+            <button class="cta-button" onclick="showAuth('register')">Get Started for Free</button>
+        </header>
+
+        <section class="tutorial-section container">
+            <h2 style="text-align: center; margin-bottom: 2rem;">How MealFinder Works</h2>
+            <div class="tutorial-grid">
+                <div class="card tutorial-card">
+                    <div class="step-number">1</div>
+                    <h3>Set Your Macros</h3>
+                    <p>Enter your height, weight, and goals. We automatically calculate your exact daily calorie and protein targets using the Mifflin-St Jeor equation.</p>
+                </div>
+                <div class="card tutorial-card">
+                    <div class="step-number">2</div>
+                    <h3>Generate & Discover</h3>
+                    <p>Let our Monte Carlo simulation generate full daily meal combos that hit your exact targets, or manually search for specific cravings.</p>
+                </div>
+                <div class="card tutorial-card">
+                    <div class="step-number">3</div>
+                    <h3>Track & Shop</h3>
+                    <p>Log your meals to hit your daily tracker, and push entire combos to the Groceries tab to instantly aggregate your shopping list with estimated pricing.</p>
+                </div>
             </div>
-            
-            <div class="search-box" style="margin-bottom: 0.5rem;">
-                <input type="number" id="reg-weight" placeholder="Weight (kg)">
-                <input type="number" id="reg-height" placeholder="Height (cm)">
+        </section>
+
+        <!-- Auth Modals -->
+        <div id="auth-modal" class="modal-overlay hidden">
+            <div class="modal-content card">
+                <button class="close-btn" onclick="closeAuth()">×</button>
+                
+                <div id="login-section" class="hidden">
+                    <h2>Welcome Back</h2>
+                    <input type="text" id="login-username" placeholder="Username" style="margin-bottom: 1rem;" class="enter-submit" data-target="login-btn">
+                    <input type="password" id="login-pass" placeholder="Password" style="margin-bottom: 1rem;" class="enter-submit" data-target="login-btn">
+                    <button id="login-btn" style="width: 100%;">Secure Login</button>
+                    <p id="auth-error" class="error-text"></p>
+                    <p class="switch-auth">New here? <span onclick="showAuth('register')">Create an account</span></p>
+                </div>
+                
+                <div id="register-section" class="hidden">
+                    <h2>Create Profile</h2>
+                    <div class="search-box" style="margin-bottom: 0.5rem;">
+                        <input type="text" id="reg-username" placeholder="Username" class="enter-submit" data-target="reg-btn">
+                        <input type="password" id="reg-pass" placeholder="Password" class="enter-submit" data-target="reg-btn">
+                    </div>
+                    <div class="search-box" style="margin-bottom: 0.5rem;">
+                        <input type="number" id="reg-age" placeholder="Age (yrs)" class="enter-submit" data-target="reg-btn">
+                        <select id="reg-gender" class="enter-submit" data-target="reg-btn">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    <div class="search-box" style="margin-bottom: 0.5rem;">
+                        <input type="number" id="reg-weight" placeholder="Weight (kg)" class="enter-submit" data-target="reg-btn">
+                        <input type="number" id="reg-height" placeholder="Height (cm)" class="enter-submit" data-target="reg-btn">
+                    </div>
+                    <div class="search-box" style="margin-bottom: 0.5rem;">
+                        <input type="number" id="reg-goal" placeholder="Goal (kg)" class="enter-submit" data-target="reg-btn">
+                        <select id="reg-activity" class="enter-submit" data-target="reg-btn">
+                            <option value="Sedentary">Sedentary</option>
+                            <option value="Light">Lightly Active</option>
+                            <option value="Moderate" selected>Moderately Active</option>
+                            <option value="Active">Very Active</option>
+                        </select>
+                    </div>
+                    <button id="reg-btn" style="width: 100%; margin-top: 0.5rem;">Create Profile</button>
+                    <p class="switch-auth">Already have an account? <span onclick="showAuth('login')">Log in</span></p>
+                </div>
             </div>
-            
-            <div class="search-box" style="margin-bottom: 0.5rem;">
-                <input type="number" id="reg-goal" placeholder="Goal (kg)">
-                <select id="reg-activity">
-                    <option value="Sedentary">Sedentary</option>
-                    <option value="Light">Lightly Active</option>
-                    <option value="Moderate" selected>Moderately Active</option>
-                    <option value="Active">Very Active</option>
-                </select>
-            </div>
-            
-            <button id="reg-btn" style="width: 100%; margin-top: 0.5rem;">Create Profile</button>
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MAIN APPLICATION -->
+    <!-- ========================================== -->
     <div id="main-app" class="hidden">
         <nav class="navbar">
-            <div class="nav-brand">MealFinder 🍽️ <span id="current-user-display" style="font-size: 1rem; color: white; font-weight: normal; margin-left: 0.5rem;"></span></div>
+            <div class="nav-brand">MealFinder 🍽️ <span id="current-user-display" class="user-badge"></span></div>
             <div class="nav-links">
                 <button class="nav-btn active" onclick="switchTab('tracker')">Tracker</button>
                 <button class="nav-btn" onclick="switchTab('search')">Search Cravings</button>
                 <button class="nav-btn" onclick="switchTab('plan')">Plan Meals</button>
                 <button class="nav-btn" onclick="switchTab('wishlist')">Groceries</button>
                 <button class="nav-btn" onclick="switchTab('profile')">Profile</button>
-                <button class="nav-btn" onclick="logout()" style="color: #ff4444;">Log Out</button>
+                <button class="nav-btn" onclick="switchTab('settings')">Settings</button>
+                <button class="nav-btn danger-text" onclick="logout()">Log Out</button>
             </div>
         </nav>
 
         <main class="container">
-            <section id="tracker" class="tab-content active">
+            <!-- TRACKER TAB -->
+            <section id="tracker" class="tab-content active fade-in">
                 <h2>Today's Macros 📊</h2>
                 <div class="card" id="macro-display"></div>
 
-                <h2>Log Food</h2>
+                <h2>Log Food Manually</h2>
                 <div class="card search-box">
-                    <input type="text" id="manual-name" placeholder="Food Name">
-                    <input type="number" id="manual-cal" placeholder="Calories" style="width: 30%;">
-                    <input type="number" id="manual-pro" placeholder="Protein (g)" style="width: 30%;">
+                    <input type="text" id="manual-name" placeholder="Food Name" class="enter-submit" data-target="log-btn">
+                    <input type="number" id="manual-cal" placeholder="Calories" class="enter-submit" data-target="log-btn">
+                    <input type="number" id="manual-pro" placeholder="Protein (g)" class="enter-submit" data-target="log-btn">
                     <button id="log-btn">Add</button>
                 </div>
 
@@ -83,13 +130,14 @@
                 <div id="daily-log-container"></div>
             </section>
 
-            <section id="search" class="tab-content hidden">
+            <!-- SEARCH TAB -->
+            <section id="search" class="tab-content hidden fade-in">
                 <h2>Find Exactly What You Want</h2>
                 <div class="card search-box">
-                    <input type="text" id="search-input" placeholder="e.g., spicy asian noodles...">
+                    <input type="text" id="search-input" placeholder="e.g., spicy asian noodles..." class="enter-submit" data-target="search-btn">
                     <button id="search-btn">Search</button>
                 </div>
-                <div id="tag-filters" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                <div id="tag-filters" class="tag-container">
                     <button class="tag-btn" onclick="toggleTag(this, 'search', 'high-protein')">high-protein</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'search', 'low-carb')">low-carb</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'search', 'vegetarian')">vegetarian</button>
@@ -102,33 +150,34 @@
                 
                 <div id="search-results" class="results-grid"></div>
                 
-                <div id="pagination-controls" class="hidden" style="display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem;">
-                    <button id="prev-btn" onclick="changePage(-1)" style="padding: 0.5rem 1rem; background: #333; color: white;">&larr; Prev</button>
-                    <span id="page-indicator" style="font-weight: bold; color: var(--primary-color);">Tab 1 of 5</span>
-                    <button id="next-btn" onclick="changePage(1)" style="padding: 0.5rem 1rem; background: #333; color: white;">Next &rarr;</button>
+                <div id="pagination-controls" class="hidden pagination">
+                    <button id="prev-btn" onclick="changePage(-1)" class="btn-outline">&larr; Prev</button>
+                    <span id="page-indicator" class="highlight-text">Tab 1 of 5</span>
+                    <button id="next-btn" onclick="changePage(1)" class="btn-outline">Next &rarr;</button>
                 </div>
             </section>
 
-            <section id="plan" class="tab-content hidden">
+            <!-- PLANNER TAB -->
+            <section id="plan" class="tab-content hidden fade-in">
                 <h2>Auto-Generate Meal Combos</h2>
-                <div class="card planner-box" style="margin-bottom: 0.5rem;">
+                <div class="card planner-box">
                     <div class="input-group">
                         <label>Calories</label>
-                        <input type="number" id="plan-cal">
+                        <input type="number" id="plan-cal" class="enter-submit" data-target="plan-btn">
                     </div>
                     <div class="input-group">
                         <label>Protein (g)</label>
-                        <input type="number" id="plan-pro">
+                        <input type="number" id="plan-pro" class="enter-submit" data-target="plan-btn">
                     </div>
                     <div class="input-group">
                         <label>Meals</label>
-                        <input type="number" id="plan-meals" value="3">
+                        <input type="number" id="plan-meals" value="3" class="enter-submit" data-target="plan-btn">
                     </div>
                     <button id="plan-btn">Generate Plan</button>
                 </div>
                 
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-                    <span style="color: var(--text-muted); font-size: 0.9rem; align-self: center;">Requirements:</span>
+                <div class="tag-container" style="margin-bottom: 1.5rem;">
+                    <span class="muted-text">Requirements:</span>
                     <button class="tag-btn" onclick="toggleTag(this, 'plan', 'vegetarian')">vegetarian</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'plan', 'vegan')">vegan</button>
                     <button class="tag-btn" onclick="toggleTag(this, 'plan', 'chicken')">chicken</button>
@@ -139,49 +188,49 @@
                 <div id="plan-results"></div>
             </section>
             
-            <section id="wishlist" class="tab-content hidden">
+            <!-- GROCERIES TAB -->
+            <section id="wishlist" class="tab-content hidden fade-in">
                 <h2>Grocery List Compiler 🛒</h2>
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                    <select id="currency-selector" onchange="calculatePrice()" style="width: auto;">
+                    <select id="currency-selector" onchange="calculatePrice()">
                         <option value="India">India (₹)</option>
                         <option value="USA">USA ($)</option>
                         <option value="UK">UK (£)</option>
                         <option value="Europe">Europe (€)</option>
                     </select>
                 </div>
-                <div class="split-layout" style="display: flex; flex-wrap: wrap; gap: 2rem;">
-                    <div style="flex: 1; min-width: 300px;">
-                        <h3 style="color: var(--primary-color); display: flex; justify-content: space-between;">
-                            Aggregated List <span id="price-estimate" style="color: white; font-size: 1rem;"></span>
-                        </h3>
-                        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">Items mapped to the exact recipes requiring them.</p>
+                <div class="split-layout">
+                    <div style="flex: 1;">
+                        <h3 class="flex-between highlight-text">Aggregated List <span id="price-estimate" class="text-main"></span></h3>
+                        <p class="muted-text">Items mapped to the exact recipes requiring them.</p>
                         <div class="card" id="grocery-list-render"></div>
                     </div>
-                    <div style="flex: 1; min-width: 300px;">
+                    <div style="flex: 1;">
                         <h3>Saved Recipes</h3>
                         <div id="wishlist-render"></div>
                     </div>
                 </div>
             </section>
 
-            <section id="profile" class="tab-content hidden">
+            <!-- PROFILE TAB -->
+            <section id="profile" class="tab-content hidden fade-in">
                 <h2>Your Profile & Progress</h2>
                 <div class="card">
                     <h3>Update Stats & Goals</h3>
                     <div class="search-box" style="margin-bottom: 0.5rem;">
-                        <input type="number" id="update-age" placeholder="Age">
-                        <select id="update-gender">
+                        <input type="number" id="update-age" placeholder="Age" class="enter-submit" data-target="update-profile-btn">
+                        <select id="update-gender" class="enter-submit" data-target="update-profile-btn">
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                         </select>
                     </div>
                     <div class="search-box" style="margin-bottom: 0.5rem;">
-                        <input type="number" id="update-weight" placeholder="Weight (kg)">
-                        <input type="number" id="update-height" placeholder="Height (cm)">
+                        <input type="number" id="update-weight" placeholder="Weight (kg)" class="enter-submit" data-target="update-profile-btn">
+                        <input type="number" id="update-height" placeholder="Height (cm)" class="enter-submit" data-target="update-profile-btn">
                     </div>
                     <div class="search-box" style="margin-bottom: 0.5rem;">
-                        <input type="number" id="update-goal" placeholder="Goal Weight (kg)">
-                        <select id="update-activity">
+                        <input type="number" id="update-goal" placeholder="Goal Weight (kg)" class="enter-submit" data-target="update-profile-btn">
+                        <select id="update-activity" class="enter-submit" data-target="update-profile-btn">
                             <option value="Sedentary">Sedentary</option>
                             <option value="Light">Lightly Active</option>
                             <option value="Moderate">Moderately Active</option>
@@ -191,14 +240,50 @@
                     
                     <button id="update-profile-btn" style="width: 100%; margin-bottom: 1rem;">Recalculate Macros & Save</button>
                     
-                    <div style="display: flex; justify-content: space-around; background: #242424; padding: 1rem; border-radius: 8px; flex-wrap: wrap;">
-                        <p style="margin: 0.5rem 0;"><strong>BMI:</strong> <span id="bmi-display" style="color: var(--primary-color);"></span></p>
-                        <p style="margin: 0.5rem 0;"><strong>Category:</strong> <span id="bmi-category" style="color: var(--primary-color);"></span></p>
+                    <div class="bmi-container">
+                        <p><strong>BMI:</strong> <span id="bmi-display" class="highlight-text"></span></p>
+                        <p><strong>Category:</strong> <span id="bmi-category" class="highlight-text"></span></p>
                     </div>
                 </div>
                 <div class="card">
                     <h3>Weight History Chart</h3>
                     <canvas id="weightChart"></canvas> 
+                </div>
+            </section>
+
+            <!-- SETTINGS TAB (NEW) -->
+            <section id="settings" class="tab-content hidden fade-in">
+                <h2>Settings</h2>
+                <div class="card">
+                    <h3>Appearance</h3>
+                    <div class="flex-between" style="margin-bottom: 2rem;">
+                        <span>Toggle Light/Dark Theme</span>
+                        <button onclick="toggleTheme()" class="btn-outline" style="width: auto;">Switch Theme</button>
+                    </div>
+
+                    <h3 class="danger-text">Danger Zone</h3>
+                    <div class="flex-between">
+                        <span class="muted-text">Permanently delete your account and all saved data. This action cannot be undone.</span>
+                        <button onclick="deleteAccount()" style="background: #ff4444; color: white; width: auto;">Delete Account</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Need Help?</h3>
+                    <p class="muted-text">Review the tutorial below to master the MealFinder ecosystem.</p>
+                    <div class="tutorial-grid" style="margin-top: 1rem;">
+                        <div class="tutorial-card" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
+                            <h4 class="highlight-text">1. Tracker & Profile</h4>
+                            <p style="font-size: 0.9rem;">Keep your weight updated to dynamically scale your daily macros. Log foods manually or push entire combos from the planner directly here.</p>
+                        </div>
+                        <div class="tutorial-card" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
+                            <h4 class="highlight-text">2. The Planner</h4>
+                            <p style="font-size: 0.9rem;">Set your calories, protein, and meals, then hit generate. The Monte Carlo engine will find combos that fit your tight macro window.</p>
+                        </div>
+                        <div class="tutorial-card" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 8px;">
+                            <h4 class="highlight-text">3. Groceries</h4>
+                            <p style="font-size: 0.9rem;">Any recipe saved via the ❤️ button appears here. The app automatically groups shared ingredients and estimates the total shopping cost.</p>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>

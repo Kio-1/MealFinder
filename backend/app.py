@@ -69,7 +69,7 @@ def calculate_macros(weight, height, age, sex, activity, goal_weight):
     return target_cals, target_pro
 
 # ==========================================
-# AUTHENTICATION ENDPOINTS
+# AUTHENTICATION & ACCOUNT ENDPOINTS
 # ==========================================
 @app.route('/api/status', methods=['GET'])
 def status():
@@ -126,6 +126,16 @@ def register():
     try:
         supabase.table('users').insert({'username': username, 'password': password, 'profile_data': profile_data}).execute()
         return jsonify({"message": "Profile created!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/delete-account', methods=['POST'])
+def delete_account():
+    data = request.json or {}
+    username = data.get('username')
+    try:
+        supabase.table('users').delete().eq('username', username).execute()
+        return jsonify({"message": "Account permanently deleted."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -288,7 +298,7 @@ def add_combo_wishlist():
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
 # ==========================================
-# SEARCH ENGINE (BUG-FREE IMMUTABLE EXECUTION)
+# SEARCH & PLANNER ENGINE
 # ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
@@ -305,16 +315,20 @@ def search():
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
             
-        # Execute strictly isolated queries to bypass the SDK method-chaining crashes
-        if formatted_query:
+        if formatted_query and tags_filter:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).execute()
+            ).text_search('search_vector', formatted_query).contains('tags', tags_filter).limit(top_n).execute()
+            db_results = res.data
+        elif formatted_query:
+            res = supabase.table('recipes').select(
+                'name, calories, protein, minutes, description, ingredients, steps, tags'
+            ).text_search('search_vector', formatted_query).limit(top_n).execute()
             db_results = res.data
         elif tags_filter:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).contains('tags', tags_filter).execute()
+            ).contains('tags', tags_filter).limit(top_n).execute()
             db_results = res.data
         else:
             res = supabase.table('recipes').select(
@@ -322,7 +336,6 @@ def search():
             ).limit(top_n).execute()
             db_results = res.data
 
-        # Safely filter tags strictly in Python if the user provided BOTH a text query and tags
         filtered_results = []
         if formatted_query and tags_filter:
             for r in db_results:
@@ -332,7 +345,6 @@ def search():
         else:
             filtered_results = db_results
 
-        # Clean array formatting and limit to 100 results without disrupting BM25 relevance rank
         seen = set()
         final_results = []
         for r in filtered_results:
@@ -351,9 +363,6 @@ def search():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ==========================================
-# MONTE CARLO COMBINATORIAL MEAL PLANNER
-# ==========================================
 @app.route('/api/plan', methods=['POST'])
 def plan():
     data = request.json or {}

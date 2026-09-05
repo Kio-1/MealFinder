@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://mealfinder-fi9a.onrender.com/api"; 
+const API_BASE_URL = "https://mealfinder-api.onrender.com/api"; 
 let currentUser = null;
 let searchTags = [];
 let planTags = [];
@@ -10,16 +10,68 @@ const RESULTS_PER_PAGE = 20;
 let globalIngredientCount = 0;
 
 // ==========================================
-// 1. AUTHENTICATION & ENTER KEY LOGIC
+// 1. GLOBAL INITIALIZATION & THEME
 // ==========================================
-document.getElementById('login-pass').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') document.getElementById('login-btn').click();
+document.addEventListener('DOMContentLoaded', () => {
+    // Load theme
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    
+    // Attach Global Enter Key Listener to any input with class 'enter-submit'
+    document.querySelectorAll('.enter-submit').forEach(input => {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const targetBtnId = this.getAttribute('data-target');
+                if (targetBtnId) document.getElementById(targetBtnId).click();
+            }
+        });
+    });
 });
 
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+}
+
+// ==========================================
+// 2. LANDING PAGE & AUTH MODALS
+// ==========================================
+function showAuth(type) {
+    document.getElementById('auth-modal').classList.remove('hidden');
+    document.getElementById('auth-error').innerText = '';
+    
+    if (type === 'login') {
+        document.getElementById('login-section').classList.remove('hidden');
+        document.getElementById('register-section').classList.add('hidden');
+        setTimeout(() => document.getElementById('login-username').focus(), 100);
+    } else {
+        document.getElementById('register-section').classList.remove('hidden');
+        document.getElementById('login-section').classList.add('hidden');
+        setTimeout(() => document.getElementById('reg-username').focus(), 100);
+    }
+}
+
+function closeAuth() {
+    document.getElementById('auth-modal').classList.add('hidden');
+    document.getElementById('login-username').value = '';
+    document.getElementById('login-pass').value = '';
+    document.getElementById('auth-error').innerText = '';
+}
+
+// ==========================================
+// 3. AUTHENTICATION LOGIC
+// ==========================================
 document.getElementById('login-btn').addEventListener('click', async () => {
     const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-pass').value;
     if (!username || !password) return;
+
+    const btn = document.getElementById('login-btn');
+    btn.innerText = "Logging in...";
+    btn.disabled = true;
 
     try {
         const response = await fetch(`${API_BASE_URL}/login`, {
@@ -36,6 +88,9 @@ document.getElementById('login-btn').addEventListener('click', async () => {
         }
     } catch (err) {
         document.getElementById('auth-error').innerText = "Error connecting to server.";
+    } finally {
+        btn.innerText = "Secure Login";
+        btn.disabled = false;
     }
 });
 
@@ -56,25 +111,36 @@ document.getElementById('reg-btn').addEventListener('click', async () => {
         return;
     }
 
-    const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-    
-    const data = await response.json();
-    if (response.ok) {
-        alert("Secure Profile Created! You can now log in above.");
-        document.getElementById('reg-username').value = '';
-        document.getElementById('reg-pass').value = '';
-    } else {
-        alert(data.error || "Registration failed");
+    const btn = document.getElementById('reg-btn');
+    btn.innerText = "Creating...";
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await response.json();
+        if (response.ok) {
+            alert("Secure Profile Created! Please log in.");
+            showAuth('login');
+        } else {
+            alert(data.error || "Registration failed");
+        }
+    } catch(err) {
+        alert("Server error.");
+    } finally {
+        btn.innerText = "Create Profile";
+        btn.disabled = false;
     }
 });
 
 function loginSuccess(username, profileData) {
     currentUser = username;
-    document.getElementById('auth-screen').classList.add('hidden');
+    closeAuth();
+    document.getElementById('landing-page').classList.add('hidden');
     document.getElementById('main-app').classList.remove('hidden');
     document.getElementById('current-user-display').innerText = `(${username})`;
     
@@ -82,18 +148,42 @@ function loginSuccess(username, profileData) {
     document.getElementById('plan-pro').value = profileData.macros.target_pro;
     
     refreshUI(profileData);
+    switchTab('tracker');
 }
 
 function logout() {
     currentUser = null;
     document.getElementById('main-app').classList.add('hidden');
-    document.getElementById('auth-screen').classList.remove('hidden');
-    document.getElementById('login-username').value = '';
-    document.getElementById('login-pass').value = '';
+    document.getElementById('landing-page').classList.remove('hidden');
+    
+    // Clear sensitive fields
+    document.querySelectorAll('input').forEach(input => input.value = '');
+    document.getElementById('plan-meals').value = '3';
+}
+
+async function deleteAccount() {
+    if (!currentUser) return;
+    if (!confirm("Are you absolutely sure? All tracked data, custom profiles, and grocery lists will be permanently deleted.")) return;
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/delete-account`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser })
+        });
+        if (res.ok) {
+            alert("Account permanently deleted.");
+            logout();
+        } else {
+            alert("Error deleting account.");
+        }
+    } catch(err) {
+        alert("Server error during deletion.");
+    }
 }
 
 // ==========================================
-// 2. DAILY TRACKER & LOCAL DATE LOGIC
+// 4. DAILY TRACKER & PROFILE UI
 // ==========================================
 function refreshUI(profileData) {
     const dateObj = new Date();
@@ -110,7 +200,7 @@ function refreshUI(profileData) {
         mealsHtml += `
             <div class="card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; margin-bottom: 0.5rem;">
                 <span>✅ <strong>${item.name}</strong> (${item.calories} kcal | ${item.protein}g)</span>
-                <button onclick="removeFood(${index})" style="background:transparent; border:none; color:#ff4444; cursor:pointer; font-size:1.2rem; padding: 0;" title="Remove Meal">❌</button>
+                <button onclick="removeFood(${index})" style="background:transparent; border:none; color:var(--danger-color); cursor:pointer; font-size:1.2rem; padding: 0; box-shadow: none;" title="Remove Meal">❌</button>
             </div>
         `;
     });
@@ -120,16 +210,17 @@ function refreshUI(profileData) {
 
     document.getElementById('macro-display').innerHTML = `
         <h3 style="margin-top: 0;">${calsEaten} / ${calsTarget} Calories</h3>
-        <div style="width: 100%; background: #333; height: 10px; border-radius: 5px; margin-bottom: 1rem;">
-            <div style="width: ${Math.min((calsEaten/calsTarget)*100, 100)}%; background: var(--primary-color); height: 100%; border-radius: 5px; transition: width 0.3s ease;"></div>
+        <div style="width: 100%; background: var(--surface-hover); height: 12px; border-radius: 6px; margin-bottom: 1rem; border: 1px solid var(--border-color);">
+            <div style="width: ${Math.min((calsEaten/calsTarget)*100, 100)}%; background: var(--primary-color); height: 100%; border-radius: 5px; transition: width 0.4s ease;"></div>
         </div>
         <h3 style="margin-top: 0;">${proEaten} / ${proTarget}g Protein</h3>
-        <div style="width: 100%; background: #333; height: 10px; border-radius: 5px;">
-            <div style="width: ${Math.min((proEaten/proTarget)*100, 100)}%; background: var(--primary-color); height: 100%; border-radius: 5px; transition: width 0.3s ease;"></div>
+        <div style="width: 100%; background: var(--surface-hover); height: 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="width: ${Math.min((proEaten/proTarget)*100, 100)}%; background: var(--primary-color); height: 100%; border-radius: 5px; transition: width 0.4s ease;"></div>
         </div>
     `;
-    document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p>No meals logged today.</p>";
+    document.getElementById('daily-log-container').innerHTML = log.length ? mealsHtml : "<p class='muted-text'>No meals logged today.</p>";
 
+    // Profile Settings
     document.getElementById('update-age').value = profileData.stats.age || 19;
     document.getElementById('update-gender').value = profileData.stats.sex || 'Male';
     document.getElementById('update-weight').value = profileData.stats.weight;
@@ -137,6 +228,7 @@ function refreshUI(profileData) {
     document.getElementById('update-activity').value = profileData.stats.activity || 'Moderate';
     document.getElementById('update-goal').value = profileData.goals.goal_weight;
     
+    // BMI
     const hMeters = (profileData.stats.height || 181) / 100;
     const bmi = (profileData.stats.weight / (hMeters * hMeters)).toFixed(1);
     let category = "Normal";
@@ -197,9 +289,6 @@ async function removeFood(index) {
     }
 }
 
-// ==========================================
-// 3. PROFILE & GRAPH LOGIC
-// ==========================================
 document.getElementById('update-profile-btn').addEventListener('click', async () => {
     const payload = {
         username: currentUser,
@@ -211,6 +300,9 @@ document.getElementById('update-profile-btn').addEventListener('click', async ()
         activity: document.getElementById('update-activity').value
     };
 
+    const btn = document.getElementById('update-profile-btn');
+    btn.innerText = "Saving...";
+    
     const res = await fetch(`${API_BASE_URL}/update-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,11 +311,11 @@ document.getElementById('update-profile-btn').addEventListener('click', async ()
 
     if (res.ok) {
         const data = await res.json();
-        alert("Profile Updated! Macros have been recalculated.");
         document.getElementById('plan-cal').value = data.profile.macros.target_cals;
         document.getElementById('plan-pro').value = data.profile.macros.target_pro;
         refreshUI(data.profile);
     }
+    btn.innerText = "Recalculate Macros & Save";
 });
 
 function renderGraph(weightHistory) {
@@ -233,6 +325,10 @@ function renderGraph(weightHistory) {
     const dataPoints = Object.values(weightHistory);
 
     if (weightChartInstance) { weightChartInstance.destroy(); }
+    
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const gridColor = isLight ? '#e0e0e0' : '#333333';
+    const tickColor = isLight ? '#666666' : '#a0a0a0';
 
     weightChartInstance = new Chart(ctx, {
         type: 'line',
@@ -241,23 +337,24 @@ function renderGraph(weightHistory) {
             datasets: [{
                 label: 'Weight (kg)',
                 data: dataPoints,
-                borderColor: '#00ff88',
-                backgroundColor: 'rgba(0, 255, 136, 0.1)',
+                borderColor: '#00cc6a',
+                backgroundColor: 'rgba(0, 204, 106, 0.1)',
                 borderWidth: 2,
                 fill: true,
-                tension: 0.3 
+                tension: 0.3,
+                pointBackgroundColor: '#00cc6a'
             }]
         },
         options: {
             responsive: true,
-            scales: { y: { grid: { color: '#333' }, ticks: { color: '#a0a0a0' } }, x: { grid: { color: '#333' }, ticks: { color: '#a0a0a0' } } },
-            plugins: { legend: { labels: { color: '#ffffff' } } }
+            scales: { y: { grid: { color: gridColor }, ticks: { color: tickColor } }, x: { grid: { color: gridColor }, ticks: { color: tickColor } } },
+            plugins: { legend: { labels: { color: tickColor } } }
         }
     });
 }
 
 // ==========================================
-// 4. GROCERIES, WISHLIST & PRICING
+// 5. GROCERIES, WISHLIST & PRICING
 // ==========================================
 function parseArrayRobust(arr) {
     if (Array.isArray(arr)) return arr;
@@ -272,8 +369,8 @@ function renderWishlistAndGroceries(wishlist) {
     const groceryContainer = document.getElementById('grocery-list-render');
     
     if (wishlist.length === 0) {
-        wishlistContainer.innerHTML = "<p>No recipes saved yet.</p>";
-        groceryContainer.innerHTML = "<p>Add recipes to your wishlist to generate a grocery list.</p>";
+        wishlistContainer.innerHTML = "<p class='muted-text'>No recipes saved yet.</p>";
+        groceryContainer.innerHTML = "<p class='muted-text'>Add recipes to your wishlist to generate a grocery list.</p>";
         document.getElementById('price-estimate').innerText = "";
         globalIngredientCount = 0;
         return;
@@ -286,19 +383,19 @@ function renderWishlistAndGroceries(wishlist) {
         let stepHtml = stepArray.length > 0 ? stepArray.map(s => `<li>${s}</li>`).join('') : '<li>No instructions provided.</li>';
 
         return `
-        <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 3px solid var(--primary-color);">
-            <div style="display: flex; justify-content: space-between; align-items: start; gap: 1rem;">
-                <h4 style="margin: 0 0 0.5rem 0;">${recipe.name}</h4>
-                <button onclick="removeWishlistIndex(${idx})" style="background: transparent; color: #ff4444; border: 1px solid #ff4444; padding: 0.3rem 0.6rem; font-size: 0.8rem;">Remove</button>
+        <div class="card" style="padding: 1rem; margin-bottom: 0.5rem; border-left: 4px solid var(--primary-color);">
+            <div class="flex-between" style="align-items: start; gap: 1rem;">
+                <h4 style="margin: 0 0 0.5rem 0; color: var(--text-main);">${recipe.name}</h4>
+                <button onclick="removeWishlistIndex(${idx})" style="background: transparent; color: var(--danger-color); border: 1px solid var(--danger-color); padding: 0.3rem 0.6rem; font-size: 0.8rem; box-shadow: none;">Remove</button>
             </div>
             
-            <details style="margin-top: 0.5rem; cursor: pointer;">
-                <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
-                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
-                    <strong>Ingredients:</strong>
-                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${ingHtml}</ul>
-                    <strong>Instructions:</strong>
-                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${stepHtml}</ol>
+            <details style="margin-top: 0.5rem;">
+                <summary>📖 View Recipe</summary>
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                    <strong class="text-main">Ingredients:</strong>
+                    <ul class="muted-text" style="margin-top: 0.2rem;">${ingHtml}</ul>
+                    <strong class="text-main">Instructions:</strong>
+                    <ol class="muted-text" style="margin-top: 0.2rem;">${stepHtml}</ol>
                 </div>
             </details>
         </div>
@@ -323,8 +420,8 @@ function renderWishlistAndGroceries(wishlist) {
     groceryContainer.innerHTML = `
         <ul style="list-style-type: none; padding: 0; margin: 0;">
             ${sortedIngredients.map(ing => `
-                <li style="border-bottom: 1px solid #333; padding: 0.75rem 0;">
-                    <strong style="color: white; font-size: 1.1rem;">${ing}</strong><br>
+                <li style="border-bottom: 1px solid var(--border-color); padding: 0.75rem 0;">
+                    <strong class="text-main" style="font-size: 1.1rem;">${ing}</strong><br>
                     <span style="font-size: 0.85rem; color: var(--primary-color);">Needed for: ${groceryMap[ing].join(', ')}</span>
                 </li>
             `).join('')}
@@ -358,7 +455,6 @@ function removeWishlistIndex(index) {
     });
 }
 
-// O(1) Instant Functions
 async function logPlanCombo(comboIndex) {
     if (!currentUser) return;
     const combo = currentPlanResults[comboIndex];
@@ -420,7 +516,7 @@ async function saveSearchRecipeToWishlist(globalIndex) {
 }
 
 // ==========================================
-// 5. SEARCH, FILTERS & PAGINATION
+// 6. SEARCH, FILTERS & PAGINATION
 // ==========================================
 function toggleTag(btnElement, context, tagString) {
     btnElement.classList.toggle('selected');
@@ -433,16 +529,12 @@ function toggleTag(btnElement, context, tagString) {
     }
 }
 
-document.getElementById('search-input').addEventListener('keypress', function (e) {
-    if (e.key === 'Enter') document.getElementById('search-btn').click();
-});
-
 document.getElementById('search-btn').addEventListener('click', async () => {
     const query = document.getElementById('search-input').value;
     const resultsContainer = document.getElementById('search-results');
     const paginationContainer = document.getElementById('pagination-controls');
     
-    resultsContainer.innerHTML = "<p>Searching database...</p>";
+    resultsContainer.innerHTML = "<p class='muted-text'>Searching database...</p>";
     paginationContainer.classList.add('hidden');
 
     try {
@@ -455,12 +547,12 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         const data = await response.json();
         
         if (!response.ok && data.error) {
-            resultsContainer.innerHTML = `<p style='color: #ff4444;'>Backend Error: ${data.error}</p>`;
+            resultsContainer.innerHTML = `<p class='error-text'>Backend Error: ${data.error}</p>`;
             return;
         }
         
         if (!data.results || data.results.length === 0) {
-            resultsContainer.innerHTML = "<p>No matches found.</p>";
+            resultsContainer.innerHTML = "<p class='muted-text'>No matches found.</p>";
             return;
         }
 
@@ -469,7 +561,7 @@ document.getElementById('search-btn').addEventListener('click', async () => {
         renderSearchResults();
 
     } catch (error) {
-        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be asleep, try again in 10 seconds.</p>";
+        resultsContainer.innerHTML = "<p class='error-text'>Error connecting to server. Render may be asleep, try again in 10 seconds.</p>";
     }
 });
 
@@ -491,24 +583,24 @@ function renderSearchResults() {
         const safeName = recipe.name.replace(/'/g, "\\'");
 
         return `
-        <div class="card" style="margin-top: 1rem;">
-            <h3 style="margin-top: 0; color: var(--primary-color);">${recipe.name}</h3>
-            <p><strong>${recipe.calories} kcal</strong> | <strong>${recipe.protein}g Protein</strong> | ${recipe.minutes} mins</p>
-            <p style="font-size: 0.9rem; color: var(--text-muted);">${recipe.description}</p>
+        <div class="card fade-in">
+            <h3 class="highlight-text" style="margin-bottom: 0.2rem;">${recipe.name}</h3>
+            <p class="text-main" style="margin-top:0;"><strong>${recipe.calories} kcal</strong> | <strong>${recipe.protein}g Protein</strong> | ${recipe.minutes} mins</p>
+            <p class="muted-text">${recipe.description}</p>
             
-            <details style="margin-top: 1rem; cursor: pointer;">
-                <summary style="color: var(--primary-color); font-weight: bold; outline: none;">📖 View Recipe</summary>
-                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
-                    <strong>Ingredients:</strong>
-                    <ul style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${ingHtml}</ul>
-                    <strong>Instructions:</strong>
-                    <ol style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.2rem;">${stepHtml}</ol>
+            <details>
+                <summary>📖 View Recipe</summary>
+                <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                    <strong class="text-main">Ingredients:</strong>
+                    <ul class="muted-text" style="margin-top: 0.2rem;">${ingHtml}</ul>
+                    <strong class="text-main">Instructions:</strong>
+                    <ol class="muted-text" style="margin-top: 0.2rem;">${stepHtml}</ol>
                 </div>
             </details>
 
             <div class="action-buttons">
                 <button onclick="logSingleMeal('${safeName}', ${recipe.calories}, ${recipe.protein})">+ Add to Tracker</button>
-                <button onclick="saveSearchRecipeToWishlist(${globalIndex})" style="background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                <button onclick="saveSearchRecipeToWishlist(${globalIndex})" class="btn-outline">❤️ Save to Groceries</button>
             </div>
         </div>
         `;
@@ -533,13 +625,22 @@ function changePage(direction) {
 }
 
 // ==========================================
-// 6. PLANNER & NAVIGATION
+// 7. PLANNER & NAVIGATION
 // ==========================================
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(t => { t.classList.remove('active'); t.classList.add('hidden'); });
+    document.querySelectorAll('.tab-content').forEach(t => { 
+        t.classList.remove('active'); 
+        t.classList.add('hidden'); 
+    });
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    
     document.getElementById(tabId).classList.remove('hidden');
-    document.getElementById(tabId).classList.add('active');
+    
+    // Slight delay to re-trigger the fade-in animation
+    setTimeout(() => {
+        document.getElementById(tabId).classList.add('active');
+    }, 10);
+    
     event.currentTarget.classList.add('active');
 }
 
@@ -549,7 +650,7 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
     const meals = parseInt(document.getElementById('plan-meals').value);
     const resultsContainer = document.getElementById('plan-results');
 
-    resultsContainer.innerHTML = "<p>Crunching numbers and simulating combinations...</p>";
+    resultsContainer.innerHTML = "<p class='muted-text'>Crunching numbers and simulating combinations...</p>";
     try {
         const response = await fetch(`${API_BASE_URL}/plan`, {
             method: 'POST',
@@ -559,7 +660,7 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
         const data = await response.json();
         
         if (data.results.length === 0) {
-            resultsContainer.innerHTML = `<p>${data.message}</p>`;
+            resultsContainer.innerHTML = `<p class='error-text'>${data.message}</p>`;
             return;
         }
 
@@ -574,19 +675,19 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
                 const safeName = mealObj.name.replace(/'/g, "\\'");
 
                 return `
-                <div style="margin-bottom: 0.8rem; background: #242424; padding: 0.5rem; border-radius: 4px;">
-                    <details style="cursor: pointer;">
-                        <summary style="font-weight: bold; outline: none; color: white;">Meal ${mIdx + 1}: <span style="color: var(--primary-color)">${mealObj.name}</span></summary>
-                        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid #333;">
-                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;"><em>${mealObj.description}</em></p>
-                            <strong>Ingredients:</strong>
-                            <ul style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${ingHtml}</ul>
-                            <strong>Instructions:</strong>
-                            <ol style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">${stepHtml}</ol>
+                <div style="margin-bottom: 0.8rem; background: var(--surface-hover); padding: 0.5rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <details>
+                        <summary>Meal ${mIdx + 1}: <span class="highlight-text">${mealObj.name}</span></summary>
+                        <div style="margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                            <p class="muted-text" style="margin-bottom: 0.5rem;"><em>${mealObj.description}</em></p>
+                            <strong class="text-main">Ingredients:</strong>
+                            <ul class="muted-text" style="margin-top: 0.2rem;">${ingHtml}</ul>
+                            <strong class="text-main">Instructions:</strong>
+                            <ol class="muted-text" style="margin-top: 0.2rem;">${stepHtml}</ol>
                             
                             <div class="action-buttons">
-                                <button onclick="logSingleMeal('${safeName}', ${mealObj.calories}, ${mealObj.protein})">+ Log Meal</button>
-                                <button onclick="savePlanMealToWishlist(${comboIndex}, ${mIdx})" style="background: transparent; color: white; border: 1px solid #333;">❤️ Save to Groceries</button>
+                                <button onclick="logSingleMeal('${safeName}', ${mealObj.calories}, ${mealObj.protein})" style="font-size: 0.85rem;">+ Log Meal</button>
+                                <button onclick="savePlanMealToWishlist(${comboIndex}, ${mIdx})" class="btn-outline" style="font-size: 0.85rem;">❤️ Save to Groceries</button>
                             </div>
                         </div>
                     </details>
@@ -594,19 +695,19 @@ document.getElementById('plan-btn').addEventListener('click', async () => {
             }).join('');
 
             return `
-            <div class="card" style="margin-top: 1rem;">
-                <h3 style="margin-top: 0; color: var(--primary-color);">Option ${comboIndex + 1}</h3>
-                <p style="margin-bottom: 1rem;"><strong>${combo['Total Calories']} kcal</strong> | <strong>${combo['Total Protein']}g Protein</strong></p>
+            <div class="card fade-in">
+                <h3 class="highlight-text" style="margin-bottom: 0.2rem;">Option ${comboIndex + 1}</h3>
+                <p class="text-main" style="margin-top: 0; margin-bottom: 1rem;"><strong>${combo['Total Calories']} kcal</strong> | <strong>${combo['Total Protein']}g Protein</strong></p>
                 
                 ${mealsHtml}
 
                 <div class="action-buttons">
                     <button onclick='logPlanCombo(${comboIndex})'>+ Log Combo to Tracker</button>
-                    <button onclick='savePlanComboToWishlist(${comboIndex})' style="background: transparent; color: white; border: 1px solid #333;">❤️ Save Combo to Groceries</button>
+                    <button onclick='savePlanComboToWishlist(${comboIndex})' class="btn-outline">❤️ Save Combo to Groceries</button>
                 </div>
             </div>`;
         }).join('');
     } catch (error) {
-        resultsContainer.innerHTML = "<p style='color: #ff4444;'>Error connecting to server. Render may be asleep, try again in a few seconds.</p>";
+        resultsContainer.innerHTML = "<p class='error-text'>Error connecting to server. Render may be asleep, try again in a few seconds.</p>";
     }
 });
