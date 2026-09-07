@@ -169,13 +169,15 @@ def update_profile():
     return jsonify({"message": "Profile updated!", "profile": profile})
 
 # ==========================================
-# TRACKER ENDPOINTS
+# TRACKER ENDPOINTS (TIMEZONE FIXED)
 # ==========================================
 @app.route('/api/log-food', methods=['POST'])
 def log_food():
     data = request.json or {}
     username = data.get('username')
-    today = datetime.now().strftime("%Y-%m-%d")
+    # Default to client date if provided to prevent timezone mismatch, otherwise UTC
+    client_date = data.get('date')
+    today = client_date if client_date else datetime.now().strftime("%Y-%m-%d")
     
     profile = load_user(username)
     if not profile:
@@ -197,7 +199,8 @@ def log_combo():
     data = request.json or {}
     username = data.get('username')
     meals = data.get('meals', [])
-    today = datetime.now().strftime("%Y-%m-%d")
+    client_date = data.get('date')
+    today = client_date if client_date else datetime.now().strftime("%Y-%m-%d")
     
     profile = load_user(username)
     if not profile:
@@ -221,7 +224,8 @@ def remove_food():
     data = request.json or {}
     username = data.get('username')
     index = data.get('index')
-    today = datetime.now().strftime("%Y-%m-%d")
+    client_date = data.get('date')
+    today = client_date if client_date else datetime.now().strftime("%Y-%m-%d")
     
     profile = load_user(username)
     if profile and today in profile.get('history', {}):
@@ -298,7 +302,7 @@ def add_combo_wishlist():
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
 # ==========================================
-# SEARCH & PLANNER ENGINE
+# SEARCH & PLANNER ENGINE (CHAINING BUG FIXED)
 # ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
@@ -315,20 +319,16 @@ def search():
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
             
-        if formatted_query and tags_filter:
+        # Execute strictly isolated queries to bypass the SDK method-chaining crashes
+        if formatted_query:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).contains('tags', tags_filter).limit(top_n).execute()
-            db_results = res.data
-        elif formatted_query:
-            res = supabase.table('recipes').select(
-                'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).limit(top_n).execute()
+            ).text_search('search_vector', formatted_query).execute()
             db_results = res.data
         elif tags_filter:
             res = supabase.table('recipes').select(
                 'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).contains('tags', tags_filter).limit(top_n).execute()
+            ).contains('tags', tags_filter).execute()
             db_results = res.data
         else:
             res = supabase.table('recipes').select(
@@ -336,6 +336,7 @@ def search():
             ).limit(top_n).execute()
             db_results = res.data
 
+        # Safely filter tags strictly in Python if the user provided BOTH a text query and tags
         filtered_results = []
         if formatted_query and tags_filter:
             for r in db_results:
@@ -345,6 +346,7 @@ def search():
         else:
             filtered_results = db_results
 
+        # Clean array formatting and limit to 100 results manually
         seen = set()
         final_results = []
         for r in filtered_results:
