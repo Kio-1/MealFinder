@@ -175,7 +175,6 @@ def update_profile():
 def log_food():
     data = request.json or {}
     username = data.get('username')
-    # Default to client date if provided to prevent timezone mismatch, otherwise UTC
     client_date = data.get('date')
     today = client_date if client_date else datetime.now().strftime("%Y-%m-%d")
     
@@ -302,54 +301,36 @@ def add_combo_wishlist():
     return jsonify({"message": f"{added_count} new meals added to Groceries!", "profile": profile})
 
 # ==========================================
-# SEARCH & PLANNER ENGINE (CHAINING BUG FIXED)
+# SEARCH ENGINE (INVINCIBLE POSTGREST SYNTAX)
 # ==========================================
 @app.route('/api/search', methods=['POST'])
 def search():
     data = request.json or {}
     query = data.get('query', '').strip()
     tags_filter = data.get('tags', [])
-    top_n = 100 
-
+    
     try:
-        db_results = []
-        formatted_query = ""
+        api_query = supabase.table('recipes').select('name, calories, protein, minutes, description, ingredients, steps, tags')
         
         if query:
             safe_words = re.findall(r'\w+', query)
             formatted_query = ' & '.join(safe_words)
-            
-        # Execute strictly isolated queries to bypass the SDK method-chaining crashes
-        if formatted_query:
-            res = supabase.table('recipes').select(
-                'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).text_search('search_vector', formatted_query).execute()
-            db_results = res.data
-        elif tags_filter:
-            res = supabase.table('recipes').select(
-                'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).contains('tags', tags_filter).execute()
-            db_results = res.data
-        else:
-            res = supabase.table('recipes').select(
-                'name, calories, protein, minutes, description, ingredients, steps, tags'
-            ).limit(top_n).execute()
-            db_results = res.data
-
-        # Safely filter tags strictly in Python if the user provided BOTH a text query and tags
-        filtered_results = []
-        if formatted_query and tags_filter:
-            for r in db_results:
-                recipe_tags = r.get('tags', []) or []
-                if any(req_tag in recipe_tags for req_tag in tags_filter):
-                    filtered_results.append(r)
-        else:
-            filtered_results = db_results
-
-        # Clean array formatting and limit to 100 results manually
+            if formatted_query:
+                api_query = api_query.text_search('search_vector', formatted_query)
+        
+        if tags_filter:
+            # 'cs' is the native PostgREST operator for "contains array"
+            formatted_tags = "{" + ",".join(tags_filter) + "}"
+            api_query = api_query.filter('tags', 'cs', formatted_tags)
+        
+        # .range() is universally supported and never throws the missing 'limit' attribute error
+        res = api_query.range(0, 99).execute()
+        db_results = res.data
+        
+        # Clean array formatting
         seen = set()
         final_results = []
-        for r in filtered_results:
+        for r in db_results:
             if r['name'] not in seen:
                 seen.add(r['name'])
                 r['ingredients'] = safe_parse_list(r.get('ingredients', []))
@@ -360,7 +341,7 @@ def search():
                 r['description'] = str(r.get('description', ''))
                 final_results.append(r)
 
-        return jsonify({"results": final_results[:top_n]})
+        return jsonify({"results": final_results})
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
