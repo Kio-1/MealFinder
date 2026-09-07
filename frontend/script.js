@@ -9,6 +9,12 @@ let currentPage = 1;
 const RESULTS_PER_PAGE = 20;
 let globalIngredientCount = 0;
 
+// HELPER: Force local timezone date to prevent UTC midnight desync
+const getLocalTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // ==========================================
 // 1. GLOBAL INITIALIZATION & THEME
 // ==========================================
@@ -186,8 +192,7 @@ async function deleteAccount() {
 // 4. DAILY TRACKER & PROFILE UI
 // ==========================================
 function refreshUI(profileData) {
-    const dateObj = new Date();
-    const today = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`; 
+    const today = getLocalTodayStr(); 
     
     const log = profileData.history[today] || [];
     let calsEaten = 0;
@@ -252,7 +257,7 @@ document.getElementById('log-btn').addEventListener('click', async () => {
     const res = await fetch(`${API_BASE_URL}/log-food`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, name: name, calories: cal, protein: pro })
+        body: JSON.stringify({ username: currentUser, date: getLocalTodayStr(), name: name, calories: cal, protein: pro })
     });
     if (res.ok) {
         const data = await res.json();
@@ -268,7 +273,7 @@ async function logSingleMeal(name, cal, pro) {
     const res = await fetch(`${API_BASE_URL}/log-food`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, name: name, calories: cal, protein: pro })
+        body: JSON.stringify({ username: currentUser, date: getLocalTodayStr(), name: name, calories: cal, protein: pro })
     });
     if (res.ok) {
         const data = await res.json();
@@ -281,7 +286,7 @@ async function removeFood(index) {
     const res = await fetch(`${API_BASE_URL}/remove-food`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, index: index })
+        body: JSON.stringify({ username: currentUser, date: getLocalTodayStr(), index: index })
     });
     if (res.ok) {
         const data = await res.json();
@@ -461,7 +466,7 @@ async function logPlanCombo(comboIndex) {
     const res = await fetch(`${API_BASE_URL}/log-combo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: currentUser, meals: combo.meals })
+        body: JSON.stringify({ username: currentUser, date: getLocalTodayStr(), meals: combo.meals })
     });
     if (res.ok) {
         const data = await res.json();
