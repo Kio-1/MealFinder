@@ -9,6 +9,7 @@ backend/users.json
 .venv/
 venv/
 env/
+.vscode/
 
 # Python Cache
 __pycache__/

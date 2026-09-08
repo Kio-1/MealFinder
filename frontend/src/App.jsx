@@ -275,7 +275,7 @@ export default function App() {
         <main className="max-w-4xl mx-auto text-center mt-20 px-6">
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-6xl md:text-8xl font-extrabold tracking-tighter mb-6">Your intelligent <br/><span className="text-brand">meal planner.</span></motion.h1>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-xl text-zinc-400 mb-10 max-w-2xl mx-auto">Generate precise combinatorial meal plans tailored to your macros, search 195,000+ recipes instantly, and seamlessly compile your grocery lists.</motion.p>
-          <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setAuthType('register'); setShowAuth(true); }} className="bg-brand text-black px-8 py-4 rounded-full text-xl font-bold shadow-[0_0_20px_rgba(0,255,136,0.4)]">Get Started for Free</motion.button>
+          <motion.button initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setAuthType('register'); setShowAuth(true); }} className="bg-brand text-black px-8 py-4 rounded-full text-xl font-bold shadow-[0_0_20px_rgba(0,255,136,0.4)]">Get Started</motion.button>
         </main>
 
         <AnimatePresence>
